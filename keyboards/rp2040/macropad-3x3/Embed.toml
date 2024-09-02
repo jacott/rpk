@@ -1,0 +1,15 @@
+[default.probe]
+speed = 5000
+protocol = "Swd"
+
+[default.general]
+chip = "RP2040"
+
+[default.reset]
+halt_afterwards = false
+
+[default.rtt]
+enabled = true
+
+[default.gdb]
+enabled = true

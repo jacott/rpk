@@ -1,0 +1,46 @@
+[package]
+name = "macropad-3x3"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[workspace]
+
+[dependencies]
+cortex-m = { version = "0.7", features = ["inline-asm"] }
+cortex-m-rt = "0.7"
+embassy-executor = { version = "0.6", features = ["task-arena-size-32768"] }
+embassy-usb = { version = "0.3", features = [
+  "max-interface-count-8",
+  "max-handler-count-2",
+] }
+
+
+[dependencies.rpk-builder]
+version = "0.1"
+path = "../../../rpk-builder"
+features = ["rp", "reset-on-panic"]
+
+[build-dependencies.rpk-config]
+version = "0.1"
+path = "../../../rpk-config"
+
+[[bin]]
+name = "macropad-3x3"
+test = false
+doctest = false
+bench = false
+
+[profile.release]
+debug = 0
+opt-level = 'z'
+lto = true
+panic = "abort"
+
+[profile.dev]
+debug = 2
+opt-level = 'z'
+lto = true
+
+[features]
+defmt = ["rpk-builder/defmt"]

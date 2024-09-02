@@ -1,0 +1,36 @@
+[package]
+name = "rpk-builder"
+description = "RPK Keyboard builder"
+license.workspace = true
+repository.workspace = true
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+
+[lib]
+bench = false
+doctest = false
+
+[dependencies]
+defmt-rtt = {version = "0.4", optional = true}
+portable-atomic = { version = "1", features = ["critical-section"], optional = true }
+embassy-executor = { version = "0.6", features = ["executor-thread", "executor-interrupt", "integrated-timers"]}
+static_cell = "2"
+
+[dependencies.embassy-rp]
+version = "0.2"
+features = ["unstable-pac", "time-driver", "critical-section-impl"]
+optional = true
+
+[dependencies.rpk-firmware]
+version = "0.1"
+path = "../rpk-firmware"
+
+[dependencies.rpk-macros]
+version = "0.1"
+path = "../rpk-macros"
+
+[features]
+defmt  = ["dep:defmt-rtt", "rpk-firmware/defmt"]
+rp = ["dep:portable-atomic", "dep:embassy-rp", "embassy-executor/arch-cortex-m"]
+reset-on-panic = ["rpk-firmware/reset-on-panic"]

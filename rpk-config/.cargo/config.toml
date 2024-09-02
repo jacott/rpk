@@ -1,0 +1,4 @@
+[profile.dev]
+debug = 2
+lto = false
+opt-level = 0

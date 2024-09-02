@@ -1,0 +1,28 @@
+[workspace]
+members = ["rpk-common", "rpk-builder", "rpk-firmware", "rpk-config", "rpk-macros"]
+resolver = "2"
+
+[workspace.package]
+version = "0.1.0"
+description = "Keyboard firmware builder and configuration tool"
+repository = "https://github.com/jacott/rpk"
+edition = "2021"
+publish = false
+license = "MIT"
+keywords = ["embedded", "keyboard-firmware", "usb-hid"]
+categories = ["embedded"]
+
+[profile.release]
+debug = 0
+lto = true
+opt-level = 'z'
+strip = true
+
+[profile.dev]
+debug = 2
+lto = false
+
+[profile.test]
+debug = 2
+lto = false
+opt-level = 0

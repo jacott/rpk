@@ -1,0 +1,38 @@
+[package]
+name = "rpk-firmware"
+description = "RPK Keyboard firmware"
+license.workspace = true
+repository.workspace = true
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[lib]
+bench = false
+doctest = false
+
+[dependencies]
+defmt = {version = "0.3", optional = true}
+embassy-time = { version = "0.3" }
+embassy-usb = { version = "0.3" }
+embassy-futures = "0.1"
+heapless = "0.8"
+embassy-sync = "0.6"
+embedded-hal = "1"
+embedded-hal-async = "1"
+embedded-storage = "0.3"
+static_cell = "2"
+embassy-executor = "0.6"
+rpk-common = {version = "0.1", path = "../rpk-common"}
+
+[dev-dependencies]
+embassy-time-driver = "0.1"
+embassy-time-queue-driver = "0.1"
+rpk-config = {version = "0.1", path = "../rpk-config"}
+critical-section = { version = "1", features = ["std"]}
+
+[features]
+reset-on-panic = []
+defmt = ["dep:defmt", "embassy-time/defmt", "embassy-usb/defmt"]
