@@ -27,7 +27,7 @@ const TOO_MANY_MULTI_ALIAS_RHS: &str =
     "Only one value may be assigned to an multi-positioned alias";
 const TOO_MANY_ROWS: &str = "Too many rows";
 const TOO_MANY_COLS: &str = "Too many keys in row";
-const UNKNOWN_ACTION: &str = "Unknown action/key-code";
+const UNKNOWN_ACTION: &str = "Unknown action/keycode";
 const SYNTAX_ERROR: &str = "Syntax error";
 const EOF: &str = "Unexpected end of file";
 

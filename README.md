@@ -25,7 +25,7 @@ Example is for a [3x3 macropad](keyboards/rp2040/macropad-3x3/default-layout.rpk
 [Raspberry Pi Pico](https://www.raspberrypi.com/products/raspberry-pi-pico/) (rp2040) micro
 controller.
 
-```aconf
+```ini
 
 [firmware]
 
@@ -88,9 +88,9 @@ scanner_buffer_size = 32
 
 [mouse] # layers can have any name.
 
-8                   = mouseup
+8                   =           mouseup
 4                   = mouseleft mousedown mouseright
-1                   = mouse1 mouse2
+1                   = mouse1    mouse2
 
 [shift] # control, shift, alt and meta (a.k.a super) correspond to the modifier keys
 
@@ -105,13 +105,14 @@ scanner_buffer_size = 32
 - Composite layers.
 - Tap dance.
 - record/play macros and store in flash.
-- Key cording.
+- Key chording.
 - LED support.
 - Bluetooth/RF/Wifi support.
 - Multi mcu/split keyboard support.
 - Macro support/Test on other mcus (other than rp2040).
 - Templates for other mcus.
 - Security features to protect uploading.
+- Macros to load other keyboard mapping stored on keyboard.
 - Hot load new firmware - (not needed for rp2040).
 
 
