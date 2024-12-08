@@ -22,15 +22,15 @@ macro_rules! setup {
     };
     (RC $r:expr, $c:expr, $t:ident, $press:ident, $assert_read:ident, $a:expr, $x:block) => {
         {
-            let transform_channel = TransformerChannel::default();
-            let mut $t = Transformer::<$r, $c, 200, NoopRawMutex, 10>::new(&transform_channel);
+            let mapper_channel = MapperChannel::default();
+            let mut $t = Mapper::<$r, $c, 200, NoopRawMutex, 10>::new(&mapper_channel);
 
             let layout = rpk_config::text_to_binary($a).unwrap();
             $t.load_layout(layout).unwrap();
 
             macro_rules! $assert_read {
                 (NONE) => {{
-                    match transform_channel.0.try_receive() {
+                    match mapper_channel.0.try_receive() {
                         Ok(ans) => {
                             assert!(false, "Unexpected key event {:?}", ans);
                         }
@@ -38,7 +38,7 @@ macro_rules! setup {
                     }
                 }};
                 ($e1:expr, $e2:expr) => {{
-                    match transform_channel.0.try_receive() {
+                    match mapper_channel.0.try_receive() {
                         Ok(ans) => {
                             assert_eq!(ans, KeyEvent::basic(kc!($e2) as u8, $e1 == 1));
                         }
@@ -48,7 +48,7 @@ macro_rules! setup {
                     }
                 }};
                 (E $e:expr) => {{
-                    if let Ok(ans) = transform_channel.0.try_receive() {
+                    if let Ok(ans) = mapper_channel.0.try_receive() {
                         assert_eq!(ans, $e);
                     } else {
                         assert!(false, "Expected key event");

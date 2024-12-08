@@ -17,24 +17,24 @@ use crate::{
     info,
     key_reporter::Reporter,
     key_scanner::{KeyScanner, KeyScannerChannel},
+    mapper::{self, Mapper, MapperChannel, MapperTimer},
     ring_fs::RingFs,
-    transformer::{self, Transformer, TransformerChannel, TransformerTimer},
     usb::{Configurator, State, UsbBuffers, SHARED_REPORT_DESC},
 };
 
 // How many scanned keys can be stored before blocking scanner
 const SCANNER_BUFFER_SIZE: usize = 32;
-// How many key events can be sent to usb before blocking transformer
+// How many key events can be sent to usb before blocking mapper
 const REPORT_BUFFER_SIZE: usize = 32;
 // How sensitive DEBOUNCE is higher numbers are more likely to stop debounce
 const DEBOUNCE_TUNE: usize = 8;
 
 // Configure comms channels
 type ScanChannel = KeyScannerChannel<NoopRawMutex, SCANNER_BUFFER_SIZE>;
-type TfChannel = TransformerChannel<NoopRawMutex, REPORT_BUFFER_SIZE>;
+type MpChannel = MapperChannel<NoopRawMutex, REPORT_BUFFER_SIZE>;
 type ScanConfigInterface = ConfigInterface<'static, 'static>;
 static KEY_SCAN_CHANNEL: StaticCell<ScanChannel> = StaticCell::new();
-static TRANSFORM_CHANNEL: StaticCell<TfChannel> = StaticCell::new();
+static MAPPER_CHANNEL: StaticCell<MpChannel> = StaticCell::new();
 static CONFIG_INTERFACE: StaticCell<ScanConfigInterface> = StaticCell::new();
 
 static USB_CONFIG: StaticCell<Configurator> = StaticCell::new();
@@ -42,15 +42,15 @@ static USB_BUFFERS: StaticCell<UsbBuffers> = StaticCell::new();
 static SHARED_HID_STATE: StaticCell<State> = StaticCell::new();
 
 #[embassy_executor::task]
-async fn timer_task(timer: &'static TransformerTimer) {
-    TransformerTimer::run(timer).await;
+async fn timer_task(timer: &'static MapperTimer) {
+    MapperTimer::run(timer).await;
 }
 
 async fn usb_run<'d, D: Driver<'d>, const REPORT_BUFFER_SIZE: usize>(
     usb_config: &'d mut Configurator<'d>,
     mut usb_builder: Builder<'d, D>,
     config_interface: &'d mut ConfigInterface<'d, 'd>,
-    transform_channel: &'d TransformerChannel<NoopRawMutex, REPORT_BUFFER_SIZE>,
+    mapper_channel: &'d MapperChannel<NoopRawMutex, REPORT_BUFFER_SIZE>,
     keyboard_state: &'d mut State<'d>,
 ) {
     let (shared_hid_writer, shared_hid_reader) = usb_config.add_iface::<_, 10, 34>(
@@ -88,7 +88,7 @@ async fn usb_run<'d, D: Driver<'d>, const REPORT_BUFFER_SIZE: usize>(
     let key_event_fut = async move {
         let mut reporter = Reporter::new(shared_hid_writer);
         loop {
-            reporter.report(transform_channel.receive().await).await;
+            reporter.report(mapper_channel.receive().await).await;
         }
     };
 
@@ -102,25 +102,19 @@ async fn usb_run<'d, D: Driver<'d>, const REPORT_BUFFER_SIZE: usize>(
     select4(key_event_fut, usb_fut, hid_fut, cfg_fut).await;
 }
 
-async fn transformer_run<
-    const ROW_COUNT: usize,
-    const COL_COUNT: usize,
-    const LAYOUT_MAX: usize,
->(
-    transform_channel: &'static TfChannel,
+async fn mapper_run<const ROW_COUNT: usize, const COL_COUNT: usize, const LAYOUT_MAX: usize>(
+    mapper_channel: &'static MpChannel,
     key_scan_channel: &'static ScanChannel,
     fs: &'static dyn RingFs<'static>,
     layout_mapping: &'static [u16],
 ) {
-    let mut transformer =
-        Transformer::<ROW_COUNT, COL_COUNT, LAYOUT_MAX, _, REPORT_BUFFER_SIZE>::new(
-            transform_channel,
-        );
+    let mut mapper =
+        Mapper::<ROW_COUNT, COL_COUNT, LAYOUT_MAX, _, REPORT_BUFFER_SIZE>::new(mapper_channel);
 
     {
         if !match fs.file_reader_by_index(0) {
             Ok(fr) => {
-                if let Err(err) = transformer.load_layout(ConfigFileIter::new(fr).skip(2)) {
+                if let Err(err) = mapper.load_layout(ConfigFileIter::new(fr).skip(2)) {
                     crate::info!("error loading layout {:?}", err);
                     false
                 } else {
@@ -132,24 +126,20 @@ async fn transformer_run<
                 false
             }
         } {
-            transformer
-                .load_layout(layout_mapping.iter().copied())
-                .unwrap();
+            mapper.load_layout(layout_mapping.iter().copied()).unwrap();
         }
     }
 
     loop {
-        if let transformer::ControlMessage::LoadLayout { file_location } =
-            transformer.run(key_scan_channel).await
+        if let mapper::ControlMessage::LoadLayout { file_location } =
+            mapper.run(key_scan_channel).await
         {
             crate::debug!("load layout here {}", file_location);
             match fs.file_reader_by_location(file_location) {
                 Ok(fr) => {
-                    if let Err(err) = transformer.load_layout(ConfigFileIter::new(fr).skip(2)) {
+                    if let Err(err) = mapper.load_layout(ConfigFileIter::new(fr).skip(2)) {
                         crate::info!("error loading layout {:?}", err);
-                        transformer
-                            .load_layout(layout_mapping.iter().copied())
-                            .unwrap();
+                        mapper.load_layout(layout_mapping.iter().copied()).unwrap();
                     }
                 }
                 Err(err) => crate::info!("error reading layout {:?}", err),
@@ -186,7 +176,7 @@ pub struct Keyboard<
 > {
     builder: KeyboardBuilder<D, I, O, INPUT_COUNT, OUTPUT_COUNT>,
     key_scan_channel: &'static KeyScannerChannel<NoopRawMutex, SCANNER_BUFFER_SIZE>,
-    transform_channel: &'static TransformerChannel<NoopRawMutex, REPORT_BUFFER_SIZE>,
+    mapper_channel: &'static MapperChannel<NoopRawMutex, REPORT_BUFFER_SIZE>,
     config_interface: &'static mut ConfigInterface<'static, 'static>,
 }
 
@@ -234,42 +224,42 @@ impl<
             usb_config,
             usb_builder,
             self.config_interface,
-            self.transform_channel,
+            self.mapper_channel,
             shared_hid_state,
         );
 
         let scanner_fut = scanner.run::<ROW_IS_OUTPUT, DEBOUNCE_TUNE>();
 
         spawner
-            .spawn(timer_task(self.transform_channel.timer()))
+            .spawn(timer_task(self.mapper_channel.timer()))
             .unwrap();
 
         if ROW_IS_OUTPUT {
-            let transformer_fut = transformer_run::<
+            let mapper_fut = mapper_run::<
                 OUTPUT_COUNT, // Output is Row
                 INPUT_COUNT,  // Input is Column
                 LAYOUT_MAX,
             >(
-                self.transform_channel,
+                self.mapper_channel,
                 self.key_scan_channel,
                 self.builder.fs,
                 self.builder.layout_mapping,
             );
 
-            select3(usb_fut, transformer_fut, scanner_fut).await;
+            select3(usb_fut, mapper_fut, scanner_fut).await;
         } else {
-            let transformer_fut = transformer_run::<
+            let mapper_fut = mapper_run::<
                 INPUT_COUNT,  // Input is Row
                 OUTPUT_COUNT, // Output is Column
                 LAYOUT_MAX,
             >(
-                self.transform_channel,
+                self.mapper_channel,
                 self.key_scan_channel,
                 self.builder.fs,
                 self.builder.layout_mapping,
             );
 
-            select3(usb_fut, transformer_fut, scanner_fut).await;
+            select3(usb_fut, mapper_fut, scanner_fut).await;
         }
         unreachable!()
     }
@@ -338,14 +328,14 @@ impl<
         self,
     ) -> Keyboard<D, I, O, ROW_IS_OUTPUT, INPUT_COUNT, OUTPUT_COUNT, LAYOUT_MAX> {
         let key_scan_channel: &'static ScanChannel = KEY_SCAN_CHANNEL.init(ScanChannel::default());
-        let transform_channel: &'static TfChannel = TRANSFORM_CHANNEL.init(TfChannel::default());
+        let mapper_channel: &'static MpChannel = MAPPER_CHANNEL.init(MpChannel::default());
         let config_interface: &'static mut ScanConfigInterface =
-            CONFIG_INTERFACE.init(ConfigInterface::new(self.fs, transform_channel.control()));
+            CONFIG_INTERFACE.init(ConfigInterface::new(self.fs, mapper_channel.control()));
 
         Keyboard {
             builder: self,
             key_scan_channel,
-            transform_channel,
+            mapper_channel,
             config_interface,
         }
     }

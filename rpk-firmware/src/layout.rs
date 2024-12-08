@@ -5,7 +5,7 @@ use rpk_common::{
     PROTOCOL_VERSION,
 };
 
-use crate::transformer::{macros::Macro, KeyPlusMod};
+use crate::mapper::{macros::Macro, KeyPlusMod};
 
 pub const MAIN_BASE: u16 = 5;
 

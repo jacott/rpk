@@ -8,7 +8,7 @@ pub mod key_scanner;
 pub mod layout;
 pub mod norflash_ring_fs;
 pub mod ring_fs;
-pub mod transformer;
+pub mod mapper;
 pub mod usb;
 
 #[macro_use]

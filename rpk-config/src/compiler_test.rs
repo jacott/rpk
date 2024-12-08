@@ -335,7 +335,7 @@ b = S-G-z
     let smz = config
         .macros
         .get((exp_code + 1 - key_range::MACROS_MIN) as usize)
-        .expect("should find S-M-z");
+        .expect("should find S-G-z");
 
     let exp = Macro::Modifier {
         keycode: kc("z"),

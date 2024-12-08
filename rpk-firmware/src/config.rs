@@ -1,7 +1,7 @@
 use crate::{
     firmware_functions,
     ring_fs::{RingFs, RingFsReader, RingFsWriter},
-    transformer,
+    mapper,
 };
 use rpk_common::usb_vendor_message::{
     CLOSE_SAVE_CONFIG, OPEN_SAVE_CONFIG, RESET_KEYBOARD, RESET_TO_USB_BOOT,
@@ -14,16 +14,16 @@ enum ReceiveState {
 
 pub struct ConfigInterface<'f, 'c> {
     fs: &'f dyn RingFs<'f>,
-    transformer_ctl: &'c transformer::ControlSignal,
+    mapper_ctl: &'c mapper::ControlSignal,
     fw: Option<RingFsWriter<'f>>,
     rcv_state: ReceiveState,
 }
 
 impl<'f, 'c> ConfigInterface<'f, 'c> {
-    pub fn new(fs: &'f dyn RingFs<'f>, transformer_ctl: &'c transformer::ControlSignal) -> Self {
+    pub fn new(fs: &'f dyn RingFs<'f>, mapper_ctl: &'c mapper::ControlSignal) -> Self {
         Self {
             fs,
-            transformer_ctl,
+            mapper_ctl,
             fw: None,
             rcv_state: ReceiveState::Idle,
         }
@@ -56,7 +56,7 @@ impl<'f, 'c> ConfigInterface<'f, 'c> {
                     let data = data.split_at(1).1;
                     self.file_write(data);
                     if let Some(fw) = self.fw.take() {
-                        self.transformer_ctl.load_layout(fw.location());
+                        self.mapper_ctl.load_layout(fw.location());
                     }
                     self.rcv_state = ReceiveState::Idle;
                 }

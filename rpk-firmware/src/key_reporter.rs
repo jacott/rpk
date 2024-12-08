@@ -2,7 +2,7 @@ use embassy_time::Timer;
 use embassy_usb::driver::Driver;
 use rpk_common::keycodes::key_range::{MODIFIER_MAX, MODIFIER_MIN};
 
-use crate::{add_key_bit, del_key_bit, hid::HidWriter, transformer::KeyEvent, warn};
+use crate::{add_key_bit, del_key_bit, hid::HidWriter, mapper::KeyEvent, warn};
 
 pub struct Reporter<'d, D: Driver<'d>, const DESC_SIZE: usize> {
     hid_writer: HidWriter<'d, D, DESC_SIZE>,

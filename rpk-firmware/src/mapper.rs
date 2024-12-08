@@ -137,12 +137,12 @@ impl ControlSignal {
     }
 }
 
-pub struct TransformerTimer {
+pub struct MapperTimer {
     expires_at: RefCell<Instant>,
     at_sig: Signal<NoopRawMutex, Instant>,
     ctl_sig: ControlSignal,
 }
-impl Default for TransformerTimer {
+impl Default for MapperTimer {
     fn default() -> Self {
         Self {
             expires_at: RefCell::new(Instant::MAX),
@@ -151,7 +151,7 @@ impl Default for TransformerTimer {
         }
     }
 }
-impl TransformerTimer {
+impl MapperTimer {
     pub fn shutdown(&self) {
         self.at_sig.signal(Instant::MIN);
     }
@@ -195,21 +195,21 @@ impl TransformerTimer {
     }
 }
 
-pub struct TransformerChannel<M: RawMutex, const N: usize>(
+pub struct MapperChannel<M: RawMutex, const N: usize>(
     Channel<M, KeyEvent, N>,
-    TransformerTimer,
+    MapperTimer,
 );
-impl<M: RawMutex, const N: usize> Default for TransformerChannel<M, N> {
+impl<M: RawMutex, const N: usize> Default for MapperChannel<M, N> {
     fn default() -> Self {
-        Self(Channel::new(), TransformerTimer::default())
+        Self(Channel::new(), MapperTimer::default())
     }
 }
-impl<M: RawMutex, const N: usize> TransformerChannel<M, N> {
+impl<M: RawMutex, const N: usize> MapperChannel<M, N> {
     pub async fn receive(&self) -> KeyEvent {
         self.0.receive().await
     }
 
-    pub fn timer(&self) -> &TransformerTimer {
+    pub fn timer(&self) -> &MapperTimer {
         &self.1
     }
 
@@ -258,7 +258,7 @@ const fn assert_sizes<const LAYOUT_MAX: usize, const REPORT_BUFFER_SIZE: usize>(
     true
 }
 
-pub struct Transformer<
+pub struct Mapper<
     'c,
     const ROW_COUNT: usize,
     const COL_COUNT: usize,
@@ -271,7 +271,7 @@ pub struct Transformer<
     mouse: mouse::Mouse,
 
     modifier_count: [i8; 8],
-    report_channel: &'c TransformerChannel<M, REPORT_BUFFER_SIZE>,
+    report_channel: &'c MapperChannel<M, REPORT_BUFFER_SIZE>,
     wait_time: u64,
     oneshot: Oneshot,
     dual_action: DualActionTimer,
@@ -287,10 +287,10 @@ impl<
         M: RawMutex,
         const LAYOUT_MAX: usize,
         const REPORT_BUFFER_SIZE: usize,
-    > Transformer<'c, ROW_COUNT, COL_COUNT, LAYOUT_MAX, M, REPORT_BUFFER_SIZE>
+    > Mapper<'c, ROW_COUNT, COL_COUNT, LAYOUT_MAX, M, REPORT_BUFFER_SIZE>
 {
     const OKAY: bool = assert_sizes::<LAYOUT_MAX, REPORT_BUFFER_SIZE>();
-    pub fn new(report_channel: &'c TransformerChannel<M, REPORT_BUFFER_SIZE>) -> Self {
+    pub fn new(report_channel: &'c MapperChannel<M, REPORT_BUFFER_SIZE>) -> Self {
         assert!(Self::OKAY);
         Self {
             layout: layout::Manager::default(),
@@ -916,5 +916,5 @@ impl<
 }
 
 #[cfg(test)]
-#[path = "transformer_test.rs"]
+#[path = "mapper_test.rs"]
 mod test;

@@ -1,7 +1,7 @@
 use core::cell::RefCell;
 
 use embassy_futures::block_on;
-use transformer::{ControlMessage, ControlSignal};
+use mapper::{ControlMessage, ControlSignal};
 
 use crate::norflash_ring_fs::test::{DefaultNorFlashStub, TestFs};
 

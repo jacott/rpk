@@ -1,4 +1,4 @@
-use crate::transformer::macros::SequenceMode;
+use crate::mapper::macros::SequenceMode;
 
 use super::*;
 
