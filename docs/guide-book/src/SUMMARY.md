@@ -17,5 +17,3 @@
   - [Keycodes, Actions and Macros](config-file/actions.md)
 - [Command Line Tool](cli/README.md)
   - [Remapping Keyboard](cli/remapping.md)
-  - [Reflashing Keyboard](cli/reflashing.md)
-  - [Initializing a new project]()

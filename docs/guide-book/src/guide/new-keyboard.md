@@ -49,8 +49,9 @@ in detail in [The Config File Firmware][4] section.
 
 Once you have edited the above files appropriately you can flash the software to the keyboard using
 the `cargo run` command. You may need to put the keyboard in to boot select mode first; this is done
-on a Raspberry Pi by holding down the reset button before connecting to the usb port. Then run the
-following command from within the project:
+on a Raspberry Pi by holding down the reset button before connecting to the usb port or the
+`rpk-config reset --usb-boot` command if the keyboard is already running RPK firmware. Next run the
+following command from within the project to reflash the device:
 
 ```sh
 cargo run --release
