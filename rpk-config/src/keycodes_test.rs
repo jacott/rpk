@@ -31,7 +31,10 @@ fn char_to_code_test() {
 #[test]
 fn test_key_code() {
     assert_eq!(key_code("mediaplaypause"), Some(232));
+    assert_eq!(key_code("Media_Play_Pause"), Some(232));
     assert_eq!(key_code("a"), Some(4));
+    assert_eq!(key_code("A"), Some(4));
+    assert_eq!(key_code("_"), Some(56));
 }
 
 #[test]

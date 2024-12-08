@@ -86,13 +86,15 @@ PIN_( PIN_6]  # comment
 #[test]
 fn keycode_names() {
     let src = r#"
-[matrix:1x2]
-\0x00 = \= b
+[matrix:1x4]
+\0x00 = \= b c d
 
 [main]
 
 equal =  1
 \b = \\
+c = mediaplaypause
+d = AC_Select_All
 
 [shift]
 b = S-\[
@@ -102,6 +104,8 @@ b = S-\[
     let config = pretty_compile(src).expect("should allow escaping");
     assert_eq!(config.code_at("main", 0x0), kc("1"));
     assert_eq!(config.code_at("main", 0x1), kc("\\"));
+    assert_eq!(config.code_at("main", 0x2), 232);
+    assert_eq!(config.code_at("main", 0x3), 798);
 }
 
 #[test]
@@ -194,7 +198,7 @@ fn macro_tap() {
 
 [main]
 
-a = macro(hello space World!!!)
+a = macro(hello space W orld!!!)
 b = macro(toggle(shift) 123, <abc} toggle(shift))
 "#;
 

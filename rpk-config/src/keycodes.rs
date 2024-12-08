@@ -272,9 +272,9 @@ MouseAccel1 MouseAccel2 MouseAccel3
         static ref KEY_NAMES: HashMap<String, u16> = {
             let mut m = HashMap::new();
             for (r, v) in FULL_KEY_NAMES.iter() {
-                let k = r.replace(DASH_USCORE, "").to_lowercase();
+                let k = if r.len() == 1 {r.to_lowercase()} else {r.replace(DASH_USCORE, "").to_lowercase()};
                 if m.contains_key(k.as_str()) {
-                    m.insert(r.to_string(), *v);
+                    panic!("duplicate key {}, {}", r, &k);
                 }
                 m.insert(k, *v);
             }
@@ -307,10 +307,17 @@ pub fn key_code(name: &str) -> Option<u16> {
         name
     };
     if name.contains(DASH_USCORE) {
-        let name = name.replace(DASH_USCORE, "");
-        KEY_NAMES.get(name.as_str()).copied()
+        let n2 = name.replace(DASH_USCORE, "");
+
+        KEY_NAMES
+            .get(n2.as_str())
+            .or_else(|| FULL_KEY_NAMES.get(name))
+            .copied()
     } else {
-        KEY_NAMES.get(name).copied()
+        KEY_NAMES
+            .get(name)
+            .or_else(|| FULL_KEY_NAMES.get(name))
+            .copied()
     }
 }
 

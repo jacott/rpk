@@ -722,13 +722,19 @@ impl<'source> Parser<'source> {
                 break;
             }
             let name = self.name(&range);
-            if let Some(code) = keycodes::key_code(name) {
+            if let Some(code) = if name.len() > 1 {
+                keycodes::key_code(name)
+            } else {
+                None
+            } {
                 seq.push(code);
             } else if keycodes::action_code(name).is_some() && self.iter.current.1 == '(' {
                 seq.push(self.read_action(range)?);
             } else {
                 let (modifiers, keycode) = name.rsplit_once('-').unwrap_or(("", name));
-                let mod_mac = if keycodes::modifiers_to_bit_map(modifiers).is_some() {
+                let mod_mac = if !modifiers.is_empty()
+                    && keycodes::modifiers_to_bit_map(modifiers).is_some()
+                {
                     keycodes::key_code(keycode).is_some()
                 } else {
                     false
