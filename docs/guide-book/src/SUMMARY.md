@@ -14,7 +14,7 @@
   - [Global Section](config-file/global.md)
   - [Matrix and Aliases](config-file/matrix.md)
   - [Layers](config-file/layers.md)
-  - [Actions and Keycodes](config-file/actions.md)
+  - [Keycodes, Actions and Macros](config-file/actions.md)
 - [Command Line Tool](cli/README.md)
   - [Remapping Keyboard](cli/remapping.md)
   - [Reflashing Keyboard](cli/reflashing.md)

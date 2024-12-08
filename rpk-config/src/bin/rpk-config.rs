@@ -1,5 +1,6 @@
-use clap::{Args, Parser, Subcommand};
-use rpk_config::{compiler::KeyboardConfig, pretty_compile, vendor_coms::KeyboardCtl};
+use clap::{Args, Parser, Subcommand, ValueEnum};
+use rpk_common::keycodes::key_range;
+use rpk_config::{compiler::KeyboardConfig, keycodes, pretty_compile, vendor_coms::KeyboardCtl};
 use std::{
     fs,
     path::{Path, PathBuf},
@@ -72,14 +73,45 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Commands {
-    /// Upload keyboard configuation
-    Upload(UploadArgs),
+    /// List keycode names
+    ListKeycodes(ListKeycodesArgs),
     /// List RPK devices
-    List,
+    ListUSB,
     /// Reset (restart) the keyboard
     Reset(ResetArgs),
-    /// Flash new software to keyboard
+    /// Validate a keyboard configuation file
     Validate(ValidateArgs),
+    /// Upload keyboard configuation
+    Upload(UploadArgs),
+}
+
+#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
+enum CodeType {
+    Basic,
+    Consumer,
+    System,
+    Mouse,
+    Custom,
+}
+
+#[derive(Args)]
+struct ListKeycodesArgs {
+    /// Include extra information including the keycode hex value
+    #[clap(long, short)]
+    verbose: bool,
+
+    /// Sort results by keycode; Defaults to sorting by name
+    #[clap(long, short)]
+    sort_by_keycode: bool,
+
+    /// Limit to keycode type
+    #[clap(long, short)]
+    code_type: Option<CodeType>,
+
+    /// Only list key names than contains pattern (case insensitive) if pattern starts with 0x then
+    /// key names matching the key code will be shown.
+    #[clap()]
+    pattern: Option<String>,
 }
 
 #[derive(Args)]
@@ -171,7 +203,7 @@ fn iter_keyboards<T: DeviceLookup>(
         .map_err(|err| err.to_string())
 }
 
-fn list(lookup: &impl DeviceLookup) -> Result<(), String> {
+fn list_usb(lookup: &impl DeviceLookup) -> Result<(), String> {
     println!("RPK keyboards:");
     for dev in iter_keyboards(lookup)? {
         println!(
@@ -272,9 +304,78 @@ fn run(cli: &Cli) -> Result<(), String> {
     match &cli.command {
         Commands::Upload(args) => upload(args, &lookup),
         Commands::Validate(args) => validate(args),
-        Commands::List => list(&lookup),
+        Commands::ListUSB => list_usb(&lookup),
         Commands::Reset(args) => reset_keyboard(args, &lookup),
+        Commands::ListKeycodes(args) => list_keycodes(args),
     }
+}
+
+fn list_keycodes(args: &ListKeycodesArgs) -> Result<(), String> {
+    let iter = keycodes::keycodes_iter().filter(|d| match args.code_type {
+        Some(t) => match t {
+            CodeType::Basic => d.code <= key_range::BASIC_MAX,
+            CodeType::Consumer => {
+                (key_range::CONSUMER_MIN..=key_range::CONSUMER_MAX).contains(&d.code)
+            }
+            CodeType::System => (key_range::SYS_CTL_MIN..=key_range::SYS_CTL_MAX).contains(&d.code),
+            CodeType::Mouse => (key_range::MOUSE_MIN..=key_range::MOUSE_MAX).contains(&d.code),
+            CodeType::Custom => d.code >= key_range::FIRMWARE_MIN,
+        },
+        None => true,
+    });
+    let mut codes = if let Some(ref pattern) = &args.pattern {
+        let pattern = pattern.to_lowercase();
+        if let Some(hex) = pattern.strip_prefix("0x") {
+            let pattern = u16::from_str_radix(hex, 16).map_err(|e| e.to_string())?;
+            iter.filter(|p| p.code == pattern).collect::<Vec<_>>()
+        } else {
+            let pattern = pattern.as_str();
+            iter.filter(|p| p.name.to_lowercase().contains(pattern))
+                .collect::<Vec<_>>()
+        }
+    } else {
+        iter.collect::<Vec<_>>()
+    };
+    if args.sort_by_keycode {
+        codes.sort_by(|a, b| match a.code.cmp(&b.code) {
+            std::cmp::Ordering::Equal => a.name.cmp(b.name),
+            i => i,
+        });
+    } else {
+        codes.sort_by_key(|k| k.name);
+    }
+    if args.verbose {
+        let mut prev_code = 0;
+        let mut names = vec![];
+        if args.sort_by_keycode {
+            for d in codes {
+                if prev_code != d.code {
+                    if !names.is_empty() {
+                        verbose_print(prev_code, &names.join(", "));
+                        names = vec![];
+                    }
+                    prev_code = d.code
+                }
+                names.push(d.name);
+            }
+            if !names.is_empty() {
+                verbose_print(prev_code, &names.join(", "));
+            }
+        } else {
+            for d in codes {
+                verbose_print(d.code, d.name);
+            }
+        }
+    } else {
+        for d in codes {
+            println!("{}", d.name);
+        }
+    }
+    Ok(())
+}
+
+fn verbose_print(code: u16, name: &str) {
+    println!("{code:02X}: {name}");
 }
 
 #[cfg(test)]

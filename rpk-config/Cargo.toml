@@ -18,7 +18,6 @@ ariadne = "0.4"
 clap = { version = "4", features = ["derive"] }
 env_logger = "0.11"
 futures-lite = "2.3.0"
-itertools = "0.13"
 lazy_static = "1"
 nusb = "0.1"
 proc-macro2 = {version = "1.0.92", features = []}

@@ -27,3 +27,13 @@ fn char_to_code_test() {
     assert_eq!(ccode('<'), kc(","));
     assert_eq!(ccode('{'), kc("["));
 }
+
+#[test]
+fn test_list_keycodes() {
+    let m = keycodes_iter().filter(|l| l.name.starts_with("Mouse"));
+
+    assert_eq!(m.count(), 23);
+
+    let k = keycodes_iter().find(|d| d.code == 0xb5).unwrap();
+    assert_eq!(k.name, "CurrencySubUnit");
+}

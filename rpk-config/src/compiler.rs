@@ -1,6 +1,5 @@
 use std::{collections::HashMap, ops::Range, str::CharIndices};
 
-use itertools::Itertools;
 use rpk_common::{
     keycodes::{
         key_range::{self, BASIC_0, BASIC_1, BASIC_A},
@@ -1363,12 +1362,9 @@ impl ConfigLayer {
             }
         } else {
             bin.resize(1 + self.codes.len() * 2, 0);
-            for (i, (k, v)) in self
-                .codes
-                .iter()
-                .sorted_by(|a, b| Ord::cmp(&a.0, &b.0))
-                .enumerate()
-            {
+            let mut codes = self.codes.iter().collect::<Vec<_>>();
+            codes.sort_by_key(|k| k.0);
+            for (i, (k, v)) in codes.into_iter().enumerate() {
                 bin[i * 2 + 1] = k.to_le();
                 bin[i * 2 + 2] = v.to_le();
             }
