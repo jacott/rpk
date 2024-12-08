@@ -29,6 +29,12 @@ fn char_to_code_test() {
 }
 
 #[test]
+fn test_key_code() {
+    assert_eq!(key_code("mediaplaypause"), Some(232));
+    assert_eq!(key_code("a"), Some(4));
+}
+
+#[test]
 fn test_list_keycodes() {
     let m = keycodes_iter().filter(|l| l.name.starts_with("Mouse"));
 

@@ -67,7 +67,7 @@ Spacebar/Space/spc/␣
 Dash/minus/-
 Equals/equal/=
 LeftBrace/leftsquarebracket/[
-RightBrace/rightsquarebracket\]
+RightBrace/rightsquarebracket/]
 Backslash/\
 Hash/NonUsHash/#
 Semicolon/;
@@ -149,7 +149,7 @@ RightControl/RCtrl/RCtl
 RightShift/RShift/RSFT
 RightAlt/AltGr/RAlt
 RightGui/RightMeta/RGUI
-Media_Play_Pause,
+Media_Play_Pause
 Media_Stop_CD
 Media_Previous_Song
 Media_Next_Song
