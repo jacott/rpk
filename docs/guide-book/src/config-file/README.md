@@ -23,6 +23,6 @@ Special characters like brackets `[` can be escaped with a backslash `\[`.
 [2]: ./firmware.md
 [3]: https://en.wikipedia.org/wiki/USB_human_interface_device_class
 [4]: ../guide/new-keyboard.md
-[5]: ../cli/README.md
+[5]: ../cli/
 [6]: https://en.wikipedia.org/wiki/INI_file
 [7]: ./matrix.md

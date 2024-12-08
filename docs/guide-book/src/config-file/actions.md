@@ -3,7 +3,7 @@
 ## Keycodes
 
 RPK supports most of the keycodes for the [USB HID][1] classes of keyboard, consumer control, system
-control, and mouse. The symbolic names of these keycode vary and RPK supports some common
+control, and mouse. The symbolic names of these keycodes vary and RPK supports some common
 aliases. To get a list of all the keycode names run the following command:
 
 ```sh
@@ -88,12 +88,12 @@ deactivates the keycodes on key release. `macro(hold(<expr1>) release(<expr2>))`
 `<expr1>` on key press and deactivate `<expr2>` on key release.
 
 `<unicode-char>` is a unicode character not in the basic keycode range; it is converted to
-`unicode(<hex-digits>)` which invokes the `global.unicode_prefix` action, type out the hex-digits,
-invoke the `global.unicode_suffix` action.
+`unicode(<hex-digits>)` which will invoke the `global.unicode_prefix` action, type out the
+hex-digits, and finally invoke the `global.unicode_suffix` action.
 
 `<modifier-list>-<keycode>` is a list of modifier codes separated by a dash `-` (See [modifiers][2])
 followed by any valid keycode. This will report the modifiers along with the keycode; for example
-`S-1` will normally product a bang `!`.
+`S-1` will normally produce a bang `!`.
 
 The following are all valid macro expressions:
 

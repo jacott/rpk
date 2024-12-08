@@ -1,6 +1,6 @@
 # Matrix Section
 
-This section gives the keyboard's individual switches a symbolic name. See the [firmware] section to
+This section gives the keyboard's individual switches a symbolic name. See the [firmware][1] section to
 see how to configure the MCU pins into rows and columns. The matrix section identifier takes an
 additional suffix which defines how many rows and columns are being mapped[^note1] like
 `[matrix:4x12]` which would indicate 4 rows and 12 columns. Assignments in this section start with a
@@ -23,6 +23,9 @@ row 1 column 5. If there are more than 16 rows or columns then four digit hex nu
 like `0x0a13` for row 10 column 19. One does not need to define a whole row per assignment but only
 one row can be assigned per line.
 
+When a valid keycode is used to name a keyboard switch it will be assigned by default to the
+[main](layers.md) layout.
+
 ### Complex Example
 
 ```ini
@@ -36,13 +39,10 @@ one row can be assigned per line.
 ```
 
 In the complex example the first row is defined in two assignments and the second row defines each
-key separately. Note that `k11` is not a valid [keycode][1]---it will map to `noop` (No
+key separately. Note that `k11` is not a valid [keycode][2]---it will map to `noop` (No
 operation)---but can be used instead of `0x11` in other parts of the config file. So `0x12`,
-`0x0104`, `return` all refer the keyboard switch at row 1, column 2 which is mapped by default to
+`0x0102`, `return` all refer the keyboard switch at row 1, column 2 which is mapped by default to
 keycode `return`.
-
-When a valid keycode is used to name a keyboard switch it will be assigned by default to the
-[main](layers.md) layout.
 
 # Aliases Section
 
@@ -77,7 +77,8 @@ d = left down right
 This example means that if `g` or `i` is tapped a `space` will be emitted and will
 switch to the `nav` layer if held.
 
-[1]: https://en.wikipedia.org/wiki/Keycode
+[1]: firmware.md
+[2]: https://en.wikipedia.org/wiki/Keycode
 
 ---
 

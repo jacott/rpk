@@ -4,7 +4,7 @@ Layers allow keyboard switches to execute more than one action or keycode. Multi
 active at any given time. At least one layer is always active and is known as the base layout. The
 base layout defaults to `main` which is initially defined by the [matrix section][1].
 
-Each layer contains a list of assignments which alter the [keycode]/[action] produced by a keyboard
+Each layer contains a list of assignments which alter the [keycode/action][2] produced by a keyboard
 switch matrix location. Each assignment is of the form:
 
 ```
@@ -105,3 +105,4 @@ Layers can be definied more than once in a conf file but only the first definiti
 modifiers; any subsequent definition with modifiers will ignore the modifiers.
 
 [1]: matrix.md
+[2]: actions.md

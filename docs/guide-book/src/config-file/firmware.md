@@ -51,4 +51,4 @@ scanner_buffer_size = 32
 The `flash_size` corresponds to the `memory.x` flash desription. Currently only `chip = rp2040` is
 supported.
 
-[1]: ../cli
+[1]: ../cli/

@@ -17,7 +17,7 @@ The action to run before sending a unicode sequence.
 The action to run after sending a unicode sequence.
 
 #### `[global.mouse_profile<n>.movement] (or .scroll)`
-Where `<n>` may be 1, 2, or 3. Is a subsection detailing the acceleration, profile of the mouse
+Where `<n>` may be 1, 2, or 3. Is a subsection detailing the acceleration profile of the mouse
 movement (or mouse scroll). The following subfields are allowed:
 
 - **`curve = [<s>, <e>]`**: where `<s>` and `<e>` are floating point numbers specifying the "x"
