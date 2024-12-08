@@ -8,7 +8,7 @@ pub mod key_range {
     pub const REPLACE_LAYERS: u16 = 0xa00;
     pub const LAYERS_LAST: u16 = REPLACE_LAYERS + MAX_LAYER_N;
 
-    pub const BASIC_MIN: u16 = 0;
+    pub const BASIC_MIN: u16 = 0x4;
     pub const BASIC_A: u16 = 0x4;
     pub const BASIC_1: u16 = 0x1e;
     pub const BASIC_0: u16 = 0x27;

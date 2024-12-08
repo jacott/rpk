@@ -44,7 +44,9 @@ lazy_static! {
     };
     static ref FULL_KEY_NAMES: HashMap<&'static str, u16> = {
         let mut m = HashMap::new();
-        m.insert("Noop", 0);
+        m.insert("Transparent", 0);
+        m.insert("No_op", 1);
+        m.insert("Nop", 1);
         m.insert("/", 0x38);
         let mut ins = |a: &'static str, b: u16| {
             for k in a.split('/') {

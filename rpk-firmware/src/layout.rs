@@ -1,6 +1,6 @@
 use rpk_common::{
     globals,
-    keycodes::key_range::{LAYER_MAX, LAYER_MIN, MACROS_MAX, MACROS_MIN},
+    keycodes::key_range::{self, LAYER_MAX, LAYER_MIN, MACROS_MAX, MACROS_MIN},
     mouse::{MouseAnalogSetting, MouseConfig},
     PROTOCOL_VERSION,
 };
@@ -222,6 +222,9 @@ impl<const ROWS: usize, const COLS: usize, const LAYOUT_MAX: usize>
             if let Some(layer) = self.get_layer(layer_idx) {
                 let code = layer.get(row, column);
                 if code != 0 {
+                    if code < key_range::BASIC_MIN {
+                        return None;
+                    }
                     return Some(KeyPlusMod::new(code, layer.modifiers()));
                 }
             }

@@ -195,10 +195,7 @@ impl MapperTimer {
     }
 }
 
-pub struct MapperChannel<M: RawMutex, const N: usize>(
-    Channel<M, KeyEvent, N>,
-    MapperTimer,
-);
+pub struct MapperChannel<M: RawMutex, const N: usize>(Channel<M, KeyEvent, N>, MapperTimer);
 impl<M: RawMutex, const N: usize> Default for MapperChannel<M, N> {
     fn default() -> Self {
         Self(Channel::new(), MapperTimer::default())
@@ -479,9 +476,7 @@ impl<
                 key_range::FIRMWARE_MIN..=key_range::FIRMWARE_MAX => {
                     self.firmware_action(action, is_down);
                 }
-                _ => {
-                    crate::info!("Not supported {:?}", action);
-                }
+                _ => {}
             };
             if modifiers != 0 && !is_down {
                 self.write_up_modifiers(modifiers, false);

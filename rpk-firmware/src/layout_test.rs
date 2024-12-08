@@ -309,6 +309,7 @@ g = 3
 [layer_2]
 
 f = 4
+e = noop
 "#,
     )
     .unwrap();
@@ -330,6 +331,7 @@ f = 4
     assert_kpm!(mgr.find_code(1, 3), "h");
     assert_kpm!(mgr.find_code(1, 1), "4");
     assert_kpm!(mgr.find_code(0, 0), "1");
+    assert_eq!(mgr.find_code(1, 0), None);
 
     assert!(mgr.pop_layer(6));
 
