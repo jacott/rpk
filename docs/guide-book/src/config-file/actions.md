@@ -99,7 +99,7 @@ The following are all valid macro expressions:
 
 * `C-d`
 * `hold(C-a)`
-* `A-M-backspace`
+* `A-S-backspace`
 * `macro(He llo space delay(500) 🌏)`
 
 Splitting into smaller tokens serves as an escaping mechainism: `macro(space)` inserts a space,

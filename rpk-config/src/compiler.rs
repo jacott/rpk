@@ -929,7 +929,7 @@ const DEFAULT_LAYERS: [(&str, u8); 6] = [
     ("control", 1),
     ("shift", 2),
     ("alt", 4),
-    ("meta", 8),
+    ("gui", 8),
     ("altgr", 0x40),
     ("main", 0),
 ];

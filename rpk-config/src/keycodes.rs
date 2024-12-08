@@ -5,7 +5,7 @@ use rpk_common::keycodes::key_range;
 
 const DASH_USCORE: [char; 2] = ['_', '-'];
 
-const MODIFIER_BITS: [&str; 8] = ["C", "S", "A", "M", "RC", "RS", "RA", "G"];
+const MODIFIER_BITS: [&str; 8] = ["C", "S", "A", "G", "RC", "RS", "RA", "RG"];
 lazy_static! {
     static ref MODIFIER_BIT_MAP: HashMap<&'static str, u8> = {
         let mut m = HashMap::new();
@@ -139,14 +139,14 @@ KpMemoryAdd KpMemorySubtract KpMemoryMultiply KpMemoryDivide KpPlusMinus
 KpClear KpClearEntry
 KpBinary KpOctal KpDecimal KpHexadecimal
 DE DF
-LeftControl/lctrl/lc/lctl/⌃
-LeftShift/lshift/ls/⇧
-LeftAlt/lalt/la
-LeftGui/LeftMeta/LeftSuper/lsuper/lgui/lg
-RightControl/rctrl/rc/rctl
-RightShift/rshift/rs
-RightAlt/altgr/ralt/ra
-RightGui/RightMeta/RightSuper/rgui/rg
+LeftControl/LCtrl/LCTL/⌃
+LeftShift/LShift/LSFT/⇧
+LeftAlt/LAlt
+LeftGui/LeftMeta/LGUI
+RightControl/RCtrl/RCtl
+RightShift/RShift/RSFT
+RightAlt/AltGr/RAlt
+RightGui/RightMeta/RGUI
 Media_Play_Pause,
 Media_Stop_CD
 Media_Previous_Song

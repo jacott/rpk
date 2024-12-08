@@ -235,7 +235,7 @@ fn load_macros() {
 [main]
 
 c = S-z
-a = C-M-k
+a = C-G-k
 "#,
     )
     .unwrap();

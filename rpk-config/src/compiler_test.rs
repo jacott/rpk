@@ -310,7 +310,7 @@ fn modifier_macros() {
 [main]
 
 a = C-x
-b = S-M-z
+b = S-G-z
 "#;
 
     let config = pretty_compile(src).expect("should allow modifier_macros");
@@ -911,9 +911,13 @@ fn defaults() {
 
     let config = compile(src).unwrap();
 
-    for (i, name) in ["control", "shift", "alt", "meta"].into_iter().enumerate() {
+    for (i, name) in ["control", "shift", "alt", "gui", "altgr"]
+        .into_iter()
+        .enumerate()
+    {
         let layer = config.layers.get(name).unwrap();
 
-        assert_eq!(layer.suffix, 1 << i);
+        let v = if name == "altgr" { 0x40 } else { 1 << i };
+        assert_eq!(layer.suffix, v);
     }
 }

@@ -36,11 +36,12 @@ g = layer(shift) macro(hello) layer(control)
 ## Modifiers
 
 Besides the `main` layer there are five other layers that are always defined: `control`, `shift`,
-`alt`, `meta`, and `altgr`. These are the modifier layers and are bound to the modifier keycodes.
+`alt`, `gui`, and `altgr`. These are the modifier layers and are bound to the modifier keycodes.
 This means that when, say the left (or right) control key is held, the `control` layer will become
-active. `meta` relates to the `leftgui` keycode, `altgr` refers to the `rightgui` keycode. These
-modifiers can be applied to any user defined layer in the form of a layer suffix. This makes the
-layer behave like a modifier layer. The format of the suffix is a follows:
+active. The same applies to `shift` and `gui`. `alt` relates to the `leftalt` keycode, `altgr`
+refers to the `rightalt` keycode. These modifiers can be applied to any user defined layer in the
+form of a layer suffix. This makes the layer behave like a modifier layer. The format of the suffix
+is a follows:
 
 ```
 "[" <layer-name>[:<modifier-list>] "]"
@@ -57,11 +58,11 @@ and each modifier is one of:
 * **C** - Left Control
 * **S** - Left Shift
 * **A** - Left Alt
-* **M** - Letf GUI (Meta/Super)
+* **G** - Letf GUI (Meta)
 * **RC** - Right Control
 * **RS** - Right Shift
-* **RA** - Right Alt
-* **G** - AltGr (Right GUI/Meta/Super)
+* **RA** - Right Alt (AltGr)
+* **RG** - Right GUI (Meta)
 
 #### Example
 
@@ -76,7 +77,7 @@ and each modifier is one of:
 
 nav = layer(nav)
 
-[nav:A-M]
+[nav:A-G]
 
 8 =       up
 4 = left down right

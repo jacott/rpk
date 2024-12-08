@@ -93,17 +93,17 @@ apostrophe              = layer(layer5)
 
 [layer5]
 
-w = M-7
-e = M-8
-r = M-9
+w = G-7
+e = G-8
+r = G-9
 
-s = M-4
-d = M-5
-f = M-6
+s = G-4
+d = G-5
+f = G-6
 
-x = M-1
-c = M-2
-v = M-3
+x = G-1
+c = G-2
+v = G-3
 
 "#,
         {
@@ -488,14 +488,14 @@ fn toggle_layer() {
 
 [main]
 
-a = toggle(meta)
+a = toggle(gui)
 
 
 "#,
         {
             press!(0, 0, true);
 
-            assert_read!(KEY_DOWN, "leftmeta");
+            assert_read!(KEY_DOWN, "leftgui");
 
             press!(0, 0, false);
 
@@ -503,7 +503,7 @@ a = toggle(meta)
 
             press!(0, 0, true);
 
-            assert_read!(KEY_UP, "leftmeta");
+            assert_read!(KEY_UP, "leftgui");
             press!(0, 0, false);
 
             assert_read!(NONE);
@@ -1157,7 +1157,7 @@ fn modifier_macros() {
 
 [main]
 
-c = C-S-M-j
+c = C-S-G-j
 g = C-S-m
 
 
