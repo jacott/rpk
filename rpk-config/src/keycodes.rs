@@ -50,6 +50,9 @@ lazy_static! {
         m.insert("/", 0x38);
         let mut ins = |a: &'static str, b: u16| {
             for k in a.split('/') {
+                if k.is_empty() {
+                    panic!("empty symbol in {a}");
+                }
                 if m.contains_key(k) {
                     panic!("key already added {a}");
                 }
@@ -75,7 +78,7 @@ LeftApos/apostrophe/'
 GraveAccent/grave/`
 Comma/,
 Period/dot/.
-Forwardslash/slash/
+Forwardslash/slash
 CapsLock/caps/⇪
 F1 F2 F3 F4 F5 F6 F7 F8 F9 F10 F11 F12
 Printscreen/print
