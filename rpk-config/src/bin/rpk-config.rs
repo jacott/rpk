@@ -3,11 +3,14 @@ use rpk_common::keycodes::key_range;
 use rpk_config::{compiler::KeyboardConfig, keycodes, pretty_compile, vendor_coms::KeyboardCtl};
 use std::{
     fs,
+    io::{self, Write},
     path::{Path, PathBuf},
     process,
 };
 
-fn parse_hex(v: &Option<&str>) -> Result<Option<u16>, &'static str> {
+use anyhow::{anyhow, Result};
+
+fn parse_hex(v: &Option<&str>) -> Result<Option<u16>> {
     if let Some(v) = v {
         u16::from_str_radix(
             if v.to_lowercase().starts_with("0x") {
@@ -18,7 +21,7 @@ fn parse_hex(v: &Option<&str>) -> Result<Option<u16>, &'static str> {
             16,
         )
         .map(Some)
-        .map_err(|_| "Invalid hex number")
+        .map_err(|_| anyhow!("Invalid hex number"))
     } else {
         Ok(None)
     }
@@ -28,7 +31,7 @@ trait DeviceLookup {
     fn vendor_id(&self) -> Option<u16>;
     fn product_id(&self) -> Option<u16>;
     fn serial_number(&self) -> &str;
-    fn no_found(&self) -> String {
+    fn no_found(&self) -> anyhow::Error {
         static ANY: &str = "any";
         fn u16_to_hex(a: &Option<u16>) -> String {
             match a {
@@ -39,7 +42,7 @@ trait DeviceLookup {
         let vendor_id = self.vendor_id();
         let product_id = self.product_id();
         let serial_number = self.serial_number();
-        format!(
+        anyhow!(
             "No matching RPK usb device found!\n  vendor_id: {}, product_id: {}, serial_number: {}",
             u16_to_hex(&vendor_id),
             u16_to_hex(&product_id),
@@ -83,15 +86,22 @@ enum Commands {
     Validate(ValidateArgs),
     /// Upload keyboard configuation
     Upload(UploadArgs),
+    /// Initialize a new keyboard project
+    Init(InitArgs),
 }
 
-#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
+#[derive(Copy, Clone, ValueEnum)]
 enum CodeType {
     Basic,
     Consumer,
     System,
     Mouse,
     Custom,
+}
+
+#[derive(Copy, Clone, ValueEnum, Debug)]
+enum ChipType {
+    Rp2040,
 }
 
 #[derive(Args)]
@@ -140,7 +150,7 @@ impl DeviceLookup for ConfigFinder {
     }
 }
 impl ConfigFinder {
-    pub fn new(config: &KeyboardConfig, args: &impl DeviceLookup) -> Result<Self, &'static str> {
+    pub fn new(config: &KeyboardConfig, args: &impl DeviceLookup) -> Result<Self> {
         let vendor_id = parse_hex(&config.firmware_get("vendor_id"))?;
         let product_id = parse_hex(&config.firmware_get("product_id"))?;
         Ok(Self {
@@ -157,7 +167,7 @@ impl ConfigFinder {
         })
     }
 
-    pub fn from_cli(cli: &Cli) -> Result<Self, &'static str> {
+    pub fn from_cli(cli: &Cli) -> Result<Self> {
         let vendor_id = parse_hex(&cli.vendor_id.as_deref())?;
         let product_id = parse_hex(&cli.product_id.as_deref())?;
         Ok(Self {
@@ -179,6 +189,16 @@ struct UploadArgs {
 }
 
 #[derive(Args)]
+struct InitArgs {
+    /// keyboard config description file
+    dir: PathBuf,
+
+    /// the name of the microcontroller
+    #[clap(long, short)]
+    chip: Option<ChipType>,
+}
+
+#[derive(Args)]
 struct ValidateArgs {
     /// keyboard config description file
     file: PathBuf,
@@ -186,24 +206,23 @@ struct ValidateArgs {
 
 fn iter_keyboards<T: DeviceLookup>(
     lookup: &T,
-) -> Result<impl Iterator<Item = nusb::DeviceInfo> + use<'_, T>, String> {
+) -> Result<impl Iterator<Item = nusb::DeviceInfo> + use<'_, T>> {
     let vendor_id = lookup.vendor_id();
     let product_id = lookup.product_id();
     let serial_number = lookup.serial_number();
-    nusb::list_devices()
-        .map(|i| {
-            i.filter(move |d| {
-                d.serial_number().unwrap_or_default().starts_with("rpk:")
-                    && vendor_id.is_none_or(|id| d.vendor_id() == id)
-                    && product_id.is_none_or(|id| d.product_id() == id)
-                    && (serial_number.is_empty()
-                        || d.serial_number().is_some_and(|d| d == serial_number))
-            })
+    let ans = nusb::list_devices().map(|i| {
+        i.filter(move |d| {
+            d.serial_number().unwrap_or_default().starts_with("rpk:")
+                && vendor_id.is_none_or(|id| d.vendor_id() == id)
+                && product_id.is_none_or(|id| d.product_id() == id)
+                && (serial_number.is_empty()
+                    || d.serial_number().is_some_and(|d| d == serial_number))
         })
-        .map_err(|err| err.to_string())
+    })?;
+    Ok(ans)
 }
 
-fn list_usb(lookup: &impl DeviceLookup) -> Result<(), String> {
+fn list_usb(lookup: &impl DeviceLookup) -> Result<()> {
     println!("RPK keyboards:");
     for dev in iter_keyboards(lookup)? {
         println!(
@@ -222,7 +241,7 @@ fn list_usb(lookup: &impl DeviceLookup) -> Result<(), String> {
     Ok(())
 }
 
-fn get_keyboard(lookup: &impl DeviceLookup) -> Result<KeyboardCtl, String> {
+fn get_keyboard(lookup: &impl DeviceLookup) -> Result<KeyboardCtl> {
     if let Some(dev) = iter_keyboards(lookup)?.next() {
         let dev = dev.open().unwrap();
         KeyboardCtl::find_vendor_interface(&dev)
@@ -231,7 +250,7 @@ fn get_keyboard(lookup: &impl DeviceLookup) -> Result<KeyboardCtl, String> {
     }
 }
 
-fn reset_keyboard(args: &ResetArgs, lookup: &impl DeviceLookup) -> Result<(), String> {
+fn reset_keyboard(args: &ResetArgs, lookup: &impl DeviceLookup) -> Result<()> {
     let ctl = get_keyboard(lookup)?;
     if args.usb_boot {
         ctl.reset_to_usb_boot_from_usb()
@@ -240,7 +259,7 @@ fn reset_keyboard(args: &ResetArgs, lookup: &impl DeviceLookup) -> Result<(), St
     }
 }
 
-fn upload(args: &UploadArgs, lookup: &impl DeviceLookup) -> Result<(), String> {
+fn upload(args: &UploadArgs, lookup: &impl DeviceLookup) -> Result<()> {
     let file = &args.file;
     let err = match fs::read_to_string(file) {
         Ok(src) => {
@@ -253,24 +272,24 @@ fn upload(args: &UploadArgs, lookup: &impl DeviceLookup) -> Result<(), String> {
 
         Err(err) => err.to_string(),
     };
-    Err(format!(
+    Err(anyhow!(
         "Failed to compile \"{}\"!\n    {}",
         file.to_str().unwrap(),
         &err
     ))
 }
 
-fn compile_file<'s>(file: &Path, src: &'s str) -> Result<KeyboardConfig<'s>, String> {
+fn compile_file<'s>(file: &Path, src: &'s str) -> Result<KeyboardConfig<'s>> {
     pretty_compile(file, src).map_err(|err| {
         if err.span.is_none() {
-            err.to_string()
+            anyhow!("{}", err.to_string())
         } else {
-            "".into()
+            anyhow!("")
         }
     })
 }
 
-fn validate(args: &ValidateArgs) -> Result<(), String> {
+fn validate(args: &ValidateArgs) -> Result<()> {
     let file = &args.file;
 
     match fs::read_to_string(file) {
@@ -279,7 +298,7 @@ fn validate(args: &ValidateArgs) -> Result<(), String> {
             Ok(())
         }
 
-        Err(err) => Err(format!(
+        Err(err) => Err(anyhow!(
             "Failed to compile \"{}\"!\n    {}",
             file.to_str().unwrap(),
             &err
@@ -287,30 +306,39 @@ fn validate(args: &ValidateArgs) -> Result<(), String> {
     }
 }
 
-fn main() {
-    let cli = Cli::parse();
-
-    let result = run(&cli);
-
-    if let Err(message) = result {
-        eprintln!("{}", message);
-        process::exit(1);
-    };
-}
-
-fn run(cli: &Cli) -> Result<(), String> {
-    let lookup = ConfigFinder::from_cli(cli)?;
-
-    match &cli.command {
-        Commands::Upload(args) => upload(args, &lookup),
-        Commands::Validate(args) => validate(args),
-        Commands::ListUSB => list_usb(&lookup),
-        Commands::Reset(args) => reset_keyboard(args, &lookup),
-        Commands::ListKeycodes(args) => list_keycodes(args),
+fn prompt_text(prompt: &str) -> Result<String> {
+    println!("Enter the {}: ", prompt);
+    io::stdout().flush().unwrap();
+    let mut resp = String::new();
+    io::stdin().read_line(&mut resp).unwrap();
+    let resp = resp.trim();
+    if resp.is_empty() {
+        Err(anyhow!("{} not supplied", prompt))
+    } else {
+        Ok(resp.into())
     }
 }
 
-fn list_keycodes(args: &ListKeycodesArgs) -> Result<(), String> {
+fn prompt_chip() -> Result<ChipType> {
+    let v = prompt_text("microprocessor type (rp2040)")?;
+    let v = v.to_lowercase();
+    match v.as_str() {
+        "rp2040" => Ok(ChipType::Rp2040),
+        _ => Err(anyhow!("Unsupported chip type {}", &v)),
+    }
+}
+
+fn init_keyboard(args: &InitArgs) -> Result<()> {
+    if fs::exists(&args.dir)? {
+        return Err(anyhow!("Already exists {}", &args.dir.display()));
+    }
+
+    let chip = args.chip.ok_or(0).or_else(|_| prompt_chip())?;
+
+    todo!("chip {:?}", &chip)
+}
+
+fn list_keycodes(args: &ListKeycodesArgs) -> Result<()> {
     let iter = keycodes::keycodes_iter().filter(|d| match args.code_type {
         Some(t) => match t {
             CodeType::Basic => d.code <= key_range::BASIC_MAX,
@@ -326,7 +354,7 @@ fn list_keycodes(args: &ListKeycodesArgs) -> Result<(), String> {
     let mut codes = if let Some(ref pattern) = &args.pattern {
         let pattern = pattern.to_lowercase();
         if let Some(hex) = pattern.strip_prefix("0x") {
-            let pattern = u16::from_str_radix(hex, 16).map_err(|e| e.to_string())?;
+            let pattern = u16::from_str_radix(hex, 16)?;
             iter.filter(|p| p.code == pattern).collect::<Vec<_>>()
         } else {
             let pattern = pattern.as_str();
@@ -376,6 +404,30 @@ fn list_keycodes(args: &ListKeycodesArgs) -> Result<(), String> {
 
 fn verbose_print(code: u16, name: &str) {
     println!("{code:02X}: {name}");
+}
+
+fn main() {
+    let cli = Cli::parse();
+
+    let result = run(&cli);
+
+    if let Err(message) = result {
+        eprintln!("{}", message);
+        process::exit(1);
+    };
+}
+
+fn run(cli: &Cli) -> Result<()> {
+    let lookup = ConfigFinder::from_cli(cli)?;
+
+    match &cli.command {
+        Commands::Upload(args) => upload(args, &lookup),
+        Commands::Validate(args) => validate(args),
+        Commands::ListUSB => list_usb(&lookup),
+        Commands::Reset(args) => reset_keyboard(args, &lookup),
+        Commands::ListKeycodes(args) => list_keycodes(args),
+        Commands::Init(args) => init_keyboard(args),
+    }
 }
 
 #[cfg(test)]

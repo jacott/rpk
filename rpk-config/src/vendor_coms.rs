@@ -1,3 +1,4 @@
+use anyhow::{anyhow, Result};
 use futures_lite::future::block_on;
 use nusb::{transfer::Direction, Interface};
 use rpk_common::usb_vendor_message::{
@@ -15,7 +16,7 @@ pub struct KeyboardCtl {
 }
 
 impl KeyboardCtl {
-    pub fn find_vendor_interface(dev: &nusb::Device) -> Result<Self, String> {
+    pub fn find_vendor_interface(dev: &nusb::Device) -> Result<Self> {
         if let Some((i, epout, epin)) = dev.configurations().find_map(|c| {
             c.interfaces().find_map(|i| {
                 i.alt_settings().find(|a| a.class() == 255).map(|i| {
@@ -31,18 +32,18 @@ impl KeyboardCtl {
                 })
             })
         }) {
-            let intf = dev.claim_interface(i).map_err(|e| e.to_string())?;
+            let intf = dev.claim_interface(i)?;
             Ok(Self {
                 intf,
                 epout,
                 _epin: epin,
             })
         } else {
-            Err("Keyboard interface not found".into())
+            Err(anyhow!("Keyboard interface not found"))
         }
     }
 
-    pub fn save_config(&self, data: &[u16]) -> Result<(), String> {
+    pub fn save_config(&self, data: &[u16]) -> Result<()> {
         self.out(vec![OPEN_SAVE_CONFIG])?;
         let len = 4 + ((data.len() as u32) << 1);
 
@@ -71,18 +72,18 @@ impl KeyboardCtl {
         self.out(vec![CLOSE_SAVE_CONFIG])
     }
 
-    pub fn reset_keyboard(&self) -> Result<(), String> {
+    pub fn reset_keyboard(&self) -> Result<()> {
         self.out(vec![RESET_KEYBOARD])
     }
 
-    pub fn reset_to_usb_boot_from_usb(&self) -> Result<(), String> {
+    pub fn reset_to_usb_boot_from_usb(&self) -> Result<()> {
         self.out(vec![RESET_TO_USB_BOOT])
     }
 
-    fn out(&self, data: Vec<u8>) -> Result<(), String> {
+    fn out(&self, data: Vec<u8>) -> Result<()> {
         block_on(self.intf.bulk_out(self.epout, data))
             .into_result()
             .map(|_| ())
-            .map_err(|err| format!("USB comms error: {}", err))
+            .map_err(|err| anyhow!("USB comms error: {}", err))
     }
 }
