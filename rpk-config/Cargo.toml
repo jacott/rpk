@@ -25,7 +25,11 @@ proc-macro2 = {version = "1.0.92", features = []}
 regex = "1"
 rpk-common = {version = "0.1", path = "../rpk-common"}
 
+[dev-dependencies]
+tempfile = "3.14.0"
+
 [[bin]]
 name = "rpk-config"
 bench = false
 doctest = false
+test = true

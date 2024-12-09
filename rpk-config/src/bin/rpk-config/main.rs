@@ -10,6 +10,8 @@ use std::{
 
 use anyhow::{anyhow, Result};
 
+mod init_builder;
+
 fn parse_hex(v: &Option<&str>) -> Result<Option<u16>> {
     if let Some(v) = v {
         u16::from_str_radix(
@@ -102,6 +104,13 @@ enum CodeType {
 #[derive(Copy, Clone, ValueEnum, Debug)]
 enum ChipType {
     Rp2040,
+}
+impl ChipType {
+    fn to_builder(&self) -> init_builder::ChipType {
+        match self {
+            ChipType::Rp2040 => init_builder::ChipType::Rp2040,
+        }
+    }
 }
 
 #[derive(Args)]
@@ -335,7 +344,12 @@ fn init_keyboard(args: &InitArgs) -> Result<()> {
 
     let chip = args.chip.ok_or(0).or_else(|_| prompt_chip())?;
 
-    todo!("chip {:?}", &chip)
+    let mut builder = init_builder::KeyboardBuilder::new(args.dir.to_owned());
+    builder.chip(chip.to_builder());
+
+    builder.build()?;
+
+    Ok(())
 }
 
 fn list_keycodes(args: &ListKeycodesArgs) -> Result<()> {

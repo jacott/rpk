@@ -12,11 +12,7 @@ runner = [
 
 linker = "flip-link"
 
-
-rustflags = [
-  "-C", "linker=flip-link", # <- add this
-  # (..)
-]
+rustflags = ["-C", "linker=flip-link"]
 
 [build]
 target = "thumbv6m-none-eabi"        # Cortex-M0 and Cortex-M0+
