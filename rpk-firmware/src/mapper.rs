@@ -214,7 +214,7 @@ impl<M: RawMutex, const N: usize> MapperChannel<M, N> {
         self.control().0.wait().await
     }
 
-    pub(crate) fn control(&self) -> &ControlSignal {
+    pub fn control(&self) -> &ControlSignal {
         &self.1.ctl_sig
     }
 

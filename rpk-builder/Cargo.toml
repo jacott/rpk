@@ -13,10 +13,13 @@ bench = false
 doctest = false
 
 [dependencies]
+defmt = {version = "0.3", optional = true}
 defmt-rtt = {version = "0.4", optional = true}
 portable-atomic = { version = "1", features = ["critical-section"], optional = true }
 embassy-executor = { version = "0.6", features = ["executor-thread", "executor-interrupt", "integrated-timers"]}
+embassy-sync = "0.6"
 static_cell = "2"
+embassy-usb = { version = "0.3" }
 
 [dependencies.embassy-rp]
 version = "0.2"
@@ -32,6 +35,6 @@ version = "0.1"
 path = "../rpk-macros"
 
 [features]
-defmt  = ["dep:defmt-rtt", "rpk-firmware/defmt"]
+defmt  = ["dep:defmt", "dep:defmt-rtt", "rpk-firmware/defmt"]
 rp = ["dep:portable-atomic", "dep:embassy-rp", "embassy-executor/arch-cortex-m"]
 reset-on-panic = ["rpk-firmware/reset-on-panic"]

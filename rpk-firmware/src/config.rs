@@ -1,7 +1,6 @@
 use crate::{
-    firmware_functions,
+    firmware_functions, mapper,
     ring_fs::{RingFs, RingFsReader, RingFsWriter},
-    mapper,
 };
 use rpk_common::usb_vendor_message::{
     CLOSE_SAVE_CONFIG, OPEN_SAVE_CONFIG, RESET_KEYBOARD, RESET_TO_USB_BOOT,

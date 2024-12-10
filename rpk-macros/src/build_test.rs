@@ -1,7 +1,5 @@
 use std::str::FromStr;
 
-use syn::visit::Visit;
-
 use super::*;
 
 #[test]
@@ -64,11 +62,38 @@ fn quote_conf_with_valid_config() {
         fn visit_item_const(&mut self, i: &'ast syn::ItemConst) {
             self.0.push(i.ident.to_string());
         }
+        fn visit_item_static(&mut self, i: &'ast syn::ItemStatic) {
+            self.0.push(i.ident.to_string());
+        }
     }
 
     let mut vis = Visitor(vec![]);
     vis.visit_file(&ast);
-    assert_eq!(vis.0.len(), 13);
+    assert_eq!(vis.0.len(), 14);
     assert_eq!(vis.0[0], "LAYOUT_MAPPING");
-    assert_eq!(vis.0[11], "MAX_POWER");
+    assert_eq!(vis.0[1], "INPUT_N");
+    assert_eq!(vis.0[10], "CONFIG_BUILDER");
+    assert_eq!(vis.0[12], "REPORT_BUFFER_SIZE");
+}
+
+#[test]
+fn test_syn_array_len() {
+    let pins = quote! {[PIN_1, PIN_2,P3,]};
+    assert_eq!(syn_array_len(&pins).unwrap(), 3);
+
+    let pins = quote! {[
+    PIN_1, PIN_2,
+    P3, P4]};
+    assert_eq!(syn_array_len(&pins).unwrap(), 4);
+}
+
+#[test]
+fn test_syn_bool() {
+    let pins = quote! {
+        true // comment
+    };
+    assert!(syn_bool(&pins).unwrap());
+
+    let pins = quote! {  false };
+    assert!(!syn_bool(&pins).unwrap());
 }

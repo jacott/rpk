@@ -12,7 +12,7 @@ use std::{
     fs,
     path::{Path, PathBuf},
 };
-use syn::Lit;
+use syn::{visit::Visit, Lit};
 
 #[derive(Debug)]
 struct BuildError(String);
@@ -96,10 +96,6 @@ fn quote_conf(source_file: &Path) -> Result<TokenStream> {
 
     let config = compile(source.as_str())
         .map_err(|e| BuildError::compile_err(e, source_file, source.as_str()))?;
-    let chip = config
-        .firmware_get("chip")
-        .ok_or_else(|| BuildError::from_str("Missing firmware.chip"))?;
-    let use_statments = build_use_statments(chip)?;
 
     let (defs, input_pins, output_pins) = parse_firmware(&config)?;
 
@@ -123,39 +119,11 @@ fn quote_conf(source_file: &Path) -> Result<TokenStream> {
                     input: #input_pins, output: #output_pins)
             };
         }
-
-        macro_rules! run_keyboard {
-            ($spawner:expr, $driver:expr, $input_pins:expr, $output_pins:expr, $flash:expr) => {
-                let flash: &'static mut Flash = FLASH.init($flash);
-                let fs: &'static Rfs = RFS.init(Rfs::new(flash).unwrap());
-
-                let builder = rpk_builder::KeyboardBuilder::new(
-                    VENDOR_ID,
-                    PRODUCT_ID,
-                    fs,
-                    $driver,
-                    $input_pins,
-                    $output_pins,
-                    LAYOUT_MAPPING,
-                )
-                .reset(&reset)
-                .reset_to_usb_boot(&reset_to_usb_boot)
-                .manufacturer(MANUFACTURER)
-                .product(PRODUCT)
-                .serial_number(SERIAL_NUMBER)
-                .max_power(MAX_POWER);
-
-                let keyboard = builder.build::<ROW_IS_OUTPUT, LAYOUT_MAX>();
-                keyboard.run($spawner).await;
-            };
-        }
-
     };
 
     let source_file = source_file.display().to_string();
 
     let result = quote! {
-        #use_statments
         #defs
         #macros
 
@@ -164,10 +132,6 @@ fn quote_conf(source_file: &Path) -> Result<TokenStream> {
         type Flash = flash::Flash<'static, FLASH, Async, FLASH_SIZE>;
         type Rfs = NorflashRingFs<'static, Flash, FS_BASE, FS_SIZE,
           { flash::ERASE_SIZE as u32 }, { flash::PAGE_SIZE }, >;
-
-        static FLASH: StaticCell<Flash> = StaticCell::new();
-        static RFS: StaticCell<Rfs> = StaticCell::new();
-
     };
 
     Ok(result)
@@ -184,27 +148,39 @@ fn read_conf(source_file: &Path) -> Result<String> {
     Ok(source)
 }
 
-fn build_use_statments(chip: &str) -> Result<TokenStream> {
-    if chip != "rp2040" {
-        return Err(BuildError(format!("Unsupported chipset {chip}")));
+fn syn_array_len(input: &TokenStream) -> Result<usize> {
+    struct SynArrayLen(usize);
+    impl<'ast> Visit<'ast> for SynArrayLen {
+        fn visit_path(&mut self, _: &'ast syn::Path) {
+            self.0 += 1;
+        }
     }
 
-    Ok(quote! {
-        use rpk_builder::rp::{
-            gpio,
-            bind_interrupts, flash,
-            flash::Async,
-            usb::{Driver, InterruptHandler},
-        };
-        use rpk_builder::rp::gpio::{AnyPin, Input, Output};
-        use rpk_builder::rp::peripherals::{FLASH, USB};
-        use rpk_builder::StaticCell;
-        use rpk_builder::norflash_ring_fs::NorflashRingFs;
+    let ast: syn::Expr = syn::parse2(input.clone()).map_err(|e| BuildError::from_error(&e))?;
+    let mut v = SynArrayLen(0);
+    v.visit_expr(&ast);
 
-        bind_interrupts!(struct Irqs {
-            USBCTRL_IRQ => InterruptHandler<USB>;
-        });
-    })
+    Ok(v.0)
+}
+
+fn syn_bool(input: &TokenStream) -> Result<bool> {
+    struct SynBool(bool, usize);
+    impl<'ast> Visit<'ast> for SynBool {
+        fn visit_lit_bool(&mut self, i: &'ast syn::LitBool) {
+            self.0 = i.value;
+            self.1 += 1;
+        }
+    }
+
+    let ast: syn::Expr = syn::parse2(input.clone()).map_err(|e| BuildError::from_error(&e))?;
+    let mut v = SynBool(false, 0);
+    v.visit_expr(&ast);
+
+    if v.1 == 1 {
+        Ok(v.0)
+    } else {
+        Err(BuildError::from_str("Expected true or false"))
+    }
 }
 
 fn parse_firmware(config: &KeyboardConfig) -> Result<(TokenStream, TokenStream, TokenStream)> {
@@ -262,35 +238,26 @@ fn parse_firmware(config: &KeyboardConfig) -> Result<(TokenStream, TokenStream, 
     get!(serial_number);
     parse!(max_power);
 
-    get!(chip);
+    parse!(scanner_buffer_size);
+    parse!(report_buffer_size);
 
-    let reset = if chip == "rp2040" {
-        quote! {
-            fn reset() {
-                cortex_m::peripheral::SCB::sys_reset()
-            }
+    let input_n = syn_array_len(&input_pins)?;
+    let output_n = syn_array_len(&output_pins)?;
 
-            fn reset_to_usb_boot() {
-                rpk_builder::rp::rom_data::reset_to_usb_boot(0, 0);
-                #[allow(clippy::empty_loop)]
-                loop {
-                    // Waiting for the reset to happen
-                }
-            }
-        }
+    let (row_count, col_count) = if syn_bool(&row_is_output)? {
+        (output_n, input_n)
     } else {
-        quote! {
-            fn reset() {}
-            fn reset_to_usb_boot {}
-        }
+        (input_n, output_n)
     };
 
     Ok((
         quote! {
             const LAYOUT_MAPPING: &[u16] = #layout_mapping;
 
-            const VENDOR_ID: u16 = #vendor_id;
-            const PRODUCT_ID: u16 = #product_id;
+            const INPUT_N: usize = #input_n;
+            const OUTPUT_N: usize = #output_n;
+            const ROW_COUNT: usize = #row_count;
+            const COL_COUNT: usize = #col_count;
             const ROW_IS_OUTPUT: bool = #row_is_output;
             const LAYOUT_MAX: usize = #max_layout_size;
 
@@ -298,12 +265,16 @@ fn parse_firmware(config: &KeyboardConfig) -> Result<(TokenStream, TokenStream, 
             const FS_BASE: usize = #fs_base;
             const FS_SIZE: usize = #fs_size;
 
-            const MANUFACTURER: &str = #manufacturer;
-            const PRODUCT: &str = #product;
-            const SERIAL_NUMBER: &str = #serial_number;
-            const MAX_POWER: u16 = #max_power;
-
-            #reset
+            static CONFIG_BUILDER: rpk_builder::usb::ConfigBuilder = rpk_builder::usb::ConfigBuilder {
+                vendor_id: #vendor_id,
+                product_id: #product_id,
+                manufacturer: #manufacturer,
+                product: #product,
+                serial_number: #serial_number,
+                max_power: #max_power,
+            };
+            const SCANNER_BUFFER_SIZE: usize = #scanner_buffer_size;
+            const REPORT_BUFFER_SIZE: usize = #report_buffer_size;
         },
         input_pins,
         output_pins,

@@ -1,20 +1,17 @@
 #![no_std]
 pub mod config;
-pub mod exec;
 pub mod firmware_functions;
 pub mod hid;
 pub mod key_reporter;
 pub mod key_scanner;
 pub mod layout;
+pub mod mapper;
 pub mod norflash_ring_fs;
 pub mod ring_fs;
-pub mod mapper;
 pub mod usb;
 
 #[macro_use]
 mod macros;
-
-pub use exec::KeyboardBuilder;
 
 pub const KEY_BITS_SIZE: usize = 32;
 
