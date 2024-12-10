@@ -3,7 +3,7 @@ members = ["rpk-common", "rpk-builder", "rpk-firmware", "rpk-config", "rpk-macro
 resolver = "2"
 
 [workspace.package]
-version = "0.1.0"
+version = "0.1.1"
 description = "Keyboard firmware builder and configuration tool"
 repository = "https://github.com/jacott/rpk"
 edition = "2021"
