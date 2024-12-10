@@ -7,3 +7,4 @@ title = "The RPK Guide Book"
 
 [output.html]
 smart-punctuation = true
+git-repository-url = "https://github.com/jacott/rpk"
