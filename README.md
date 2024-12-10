@@ -1,11 +1,12 @@
 # RPK - Rust Programmable Keyboard
 
 RPK is a keyboard firmware builder written in rust for hobbyist mechanical keyboards. It is modeled
-on the excellent configuration of [keyd](https://github.com/rvaiya/keyd).
+on the excellent configuration of [keyd][1]. Check out the [User Guide][2] for information about
+building firmware for your keyboard.
 
 # Features
 
-- Text file configuration which can be uploaded instantly via the rpk-config companion program (no
+- Text file configuration which can be uploaded instantly via the `rpk-config` companion program (no
   need to re-flash firmware).
 - 256 low cost layers.
 - Arbitrarily many macros.
@@ -17,13 +18,11 @@ on the excellent configuration of [keyd](https://github.com/rvaiya/keyd).
 - Ring file system for storing multiple configurations.
 - Clear, reset, bootloader actions and reset on panic.
 - Low latency debounce logic.
-- Low overhead firmware - uses rust [embassy](https://embassy.dev) async embedded framework.
+- Low overhead firmware - uses rust [embassy][3] async embedded framework.
 
 # Example config file
 
-Example is for a [3x3 macropad](keyboards/rp2040/macropad-3x3/default-layout.rpk.conf) with a
-[Raspberry Pi Pico](https://www.raspberrypi.com/products/raspberry-pi-pico/) (rp2040) micro
-controller.
+Example is for a [3x3 macropad][4] with a [Raspberry Pi Pico][5] (rp2040) micro controller.
 
 ```ini
 
@@ -118,4 +117,11 @@ scanner_buffer_size = 32
 
 ## License
 
-MIT license ([LICENSE-MIT](LICENSE-MIT) or <http://opensource.org/licenses/MIT>)
+MIT license ([LICENSE-MIT][6] or <http://opensource.org/licenses/MIT>)
+
+[1]: https://github.com/rvaiya/keyd
+[2]: https://jacott.github.io/rpk/
+[3]: https://embassy.dev
+[4]: keyboards/rp2040/macropad-3x3/default-layout.rpk.conf
+[5]: https://www.raspberrypi.com/products/raspberry-pi-pico/
+[6]: LICENSE-MIT
