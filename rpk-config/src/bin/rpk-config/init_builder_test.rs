@@ -33,8 +33,10 @@ name = "my-keeb""#
 
     let v = fs::read_to_string(root.join("my-keeb/src/main.rs"))?;
 
-    assert!(v.contains("rpk_builder::configure_keyboard!()"));
-    assert!(v.contains("run_keyboard!(spawner, driver, input_pins, output_pins, flash)"));
+    assert_eq!(
+        v,
+        "#![no_std]\n#![no_main]\n\nrpk_builder::rp_run_keyboard! {}\n"
+    );
 
     let v = fs::read_to_string(root.join("my-keeb/.cargo/config.toml"))?;
 
