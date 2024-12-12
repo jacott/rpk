@@ -1,4 +1,4 @@
-use std::str::FromStr;
+use std::{collections::HashMap, str::FromStr};
 
 use super::*;
 
@@ -57,23 +57,37 @@ fn quote_conf_with_valid_config() {
 
     let ast: syn::File = syn::parse2(res.clone()).unwrap();
 
-    struct Visitor(Vec<String>);
+    struct Visitor(HashMap<String, String>);
     impl<'ast> Visit<'ast> for Visitor {
         fn visit_item_const(&mut self, i: &'ast syn::ItemConst) {
-            self.0.push(i.ident.to_string());
+            self.0.insert(
+                i.ident.to_string(),
+                i.expr.to_token_stream().to_string().replace(" ", ""),
+            );
         }
         fn visit_item_static(&mut self, i: &'ast syn::ItemStatic) {
-            self.0.push(i.ident.to_string());
+            self.0.insert(
+                i.ident.to_string(),
+                i.expr.to_token_stream().to_string().replace(" ", ""),
+            );
         }
     }
 
-    let mut vis = Visitor(vec![]);
+    let mut vis = Visitor(HashMap::new());
     vis.visit_file(&ast);
     assert_eq!(vis.0.len(), 14);
-    assert_eq!(vis.0[0], "LAYOUT_MAPPING");
-    assert_eq!(vis.0[1], "INPUT_N");
-    assert_eq!(vis.0[10], "CONFIG_BUILDER");
-    assert_eq!(vis.0[12], "REPORT_BUFFER_SIZE");
+    assert_eq!(vis.0.get("LAYOUT_MAPPING").unwrap(),
+        "{constM:[u16;29]=[1,771,7,0,0,8,9,10,11,12,13,23,24,1,2,4,8,64,0,36,37,38,33,34,35,30,31,32,0];&M}");
+
+    assert_eq!(vis.0.get("INPUT_N").unwrap(), "3usize");
+    assert_eq!(vis.0.get("FS_SIZE").unwrap(), "FLASH_SIZE-FS_BASE");
+
+    let cfg = vis.0.get("CONFIG_BUILDER").unwrap();
+
+    assert!(cfg.contains("vendor_id:0x6e0f"));
+    assert!(cfg.contains("serial_number:\"rpk:0001\""));
+    assert!(cfg.contains("max_power:100"));
+    assert_eq!(vis.0.get("REPORT_BUFFER_SIZE").unwrap(), "32");
 }
 
 #[test]

@@ -10,10 +10,14 @@ pub fn pretty_compile(src: &str) -> Result<KeyboardConfig> {
     crate::pretty_compile(Path::new("test"), src)
 }
 
+pub fn test_compile(source: &str) -> Result<KeyboardConfig> {
+    compile(PathBuf::from(""), source)
+}
+
 macro_rules! compile_global {
     ($src:ident, $result:ident, $name:expr, $value:expr, $x:tt) => {{
         let $src = format!("[global]\n{} = {}\n", $name, $value);
-        let $result = compile($src.as_str());
+        let $result = test_compile($src.as_str());
 
         $x
     }};
@@ -59,28 +63,13 @@ scanner_buffer_size = 16
     let config = pretty_compile(src).expect("should allow firmware");
 
     assert_eq!(
-        config.firmware_get("output_pins").unwrap(),
-        "[PIN_4, # comment pin 4]\nPIN_5, PIN_6]"
+        config.firmware_get_str("output_pins").unwrap(),
+        "[PIN_4, # comment pin 4]\nPIN_5, PIN_6]  # comment"
     );
     assert_eq!(
-        config.firmware_get("fs_size").unwrap(),
+        config.text(&config.firmware_get("fs_size").unwrap()),
         "flash_size - fs_base"
     );
-}
-
-#[test]
-fn bad_syntax_in_firmware_section() {
-    let src = r#"
-[firmware]
-
-output_pins = [PIN_4, # comment pin 4]
-PIN_( PIN_6]  # comment
-"#;
-
-    let config = compile(src).err().expect("should be in error");
-
-    assert_eq!(config.message, "Syntax error");
-    assert_eq!(config.span.unwrap(), 27..75);
 }
 
 #[test]
@@ -409,7 +398,7 @@ fn aliases() {
 0x43 = a
 "#;
 
-    let config = compile(src).unwrap();
+    let config = test_compile(src).unwrap();
 
     assert_eq!(key_position(&config, "a", 1), 0x0403);
     assert_eq!(key_position(&config, "b", 0), 0x0203);
@@ -430,7 +419,7 @@ fn matrix() {
 0x21 = a
 "#;
 
-    let config = compile(src).unwrap();
+    let config = test_compile(src).unwrap();
 
     assert_eq!(key_position(&config, "a", 0), 0x201);
     assert_eq!(key_position(&config, "2", 0), 0x201);
@@ -470,7 +459,7 @@ fn invalid_alias_multi_assign() {
 a = shift foo
 "#;
 
-    let config = compile(src).err().unwrap();
+    let config = test_compile(src).err().unwrap();
 
     assert_eq!(config.message, "Only one value may be assigned");
     assert_eq!(config.span.unwrap(), 58..61);
@@ -493,7 +482,7 @@ shift = x y
 c = 1 2
 "#;
 
-    let config = compile(src).err().unwrap();
+    let config = test_compile(src).err().unwrap();
 
     assert_eq!(
         config.message,
@@ -510,7 +499,7 @@ shift 1
 a 2
 "#;
 
-    let config = compile(src).err().unwrap();
+    let config = test_compile(src).err().unwrap();
 
     assert_eq!(config.message, "Missing =");
     assert_eq!(config.span.unwrap(), 12..18);
@@ -591,7 +580,7 @@ a = z
 b = 1
 "#;
 
-    let config = compile(src).unwrap();
+    let config = test_compile(src).unwrap();
 
     let layer = config.layers.get("main").unwrap();
 
@@ -651,7 +640,7 @@ b = x
 
 "#;
 
-    let err = compile(src).err().unwrap();
+    let err = test_compile(src).err().unwrap();
 
     assert_eq!(&err.message, "layer suffix may not be changed; S != S-C");
     assert_eq!(
@@ -679,7 +668,7 @@ a = z
 
 "#;
 
-    let err = compile(src).err().unwrap();
+    let err = test_compile(src).err().unwrap();
 
     assert_eq!(&err.message, "Invalid layer suffix 'S:C'");
     assert_eq!(
@@ -853,7 +842,7 @@ a = left
 
 #[test]
 fn global_dual_action_timeout() {
-    let config = compile("").unwrap();
+    let config = test_compile("").unwrap();
 
     assert!(config.global("dual_action_timeout").is_none());
 
@@ -875,7 +864,7 @@ fn global_dual_action_timeout() {
 
 #[test]
 fn global_dual_action_timeout2() {
-    let config = compile("").unwrap();
+    let config = test_compile("").unwrap();
 
     assert!(config.global("dual_action_timeout2").is_none());
 
@@ -913,7 +902,7 @@ fn defaults() {
 0x10 = c d
 "#;
 
-    let config = compile(src).unwrap();
+    let config = test_compile(src).unwrap();
 
     for (i, name) in ["control", "shift", "alt", "gui", "altgr"]
         .into_iter()

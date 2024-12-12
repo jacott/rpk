@@ -1,11 +1,11 @@
-use std::fmt::Write;
+use std::{fmt::Write, path::PathBuf};
 use std::{ops::Range, path::Path};
 
+pub mod builder;
 pub mod compiler;
 pub mod globals;
 pub mod keycodes;
 pub mod vendor_coms;
-pub mod builder;
 
 #[derive(Debug)]
 pub struct ConfigError {
@@ -119,7 +119,7 @@ pub fn pretty_compile<'s>(
     file: &Path,
     src: &'s str,
 ) -> Result<compiler::KeyboardConfig<'s>, ConfigError> {
-    match compiler::compile(src) {
+    match compiler::compile(PathBuf::from(file), src) {
         Ok(config) => Ok(config),
         Err(err) => {
             use ariadne::{ColorGenerator, Label, Report, ReportKind, Source};

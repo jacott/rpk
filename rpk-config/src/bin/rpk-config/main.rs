@@ -1,6 +1,8 @@
 use clap::{Args, Parser, Subcommand, ValueEnum};
 use rpk_common::keycodes::key_range;
-use rpk_config::{compiler::KeyboardConfig, keycodes, pretty_compile, vendor_coms::KeyboardCtl};
+use rpk_config::{
+    compiler::KeyboardConfig, keycodes, pretty_compile, vendor_coms::KeyboardCtl, ConfigError,
+};
 use std::{
     fs,
     io::{self, Write},
@@ -24,6 +26,17 @@ fn parse_hex(v: &Option<&str>) -> Result<Option<u16>> {
         )
         .map(Some)
         .map_err(|_| anyhow!("Invalid hex number"))
+    } else {
+        Ok(None)
+    }
+}
+
+fn parse_firmware_hex(config: &KeyboardConfig, key: &str) -> Result<Option<u16>> {
+    let vr = config.firmware_get(key);
+    if let Some(vr) = vr {
+        let v = config.text(&vr);
+        parse_hex(&Some(v))
+            .map_err(|e| anyhow::Error::from(ConfigError::new(e.to_string(), vr.start..vr.end)))
     } else {
         Ok(None)
     }
@@ -160,14 +173,14 @@ impl DeviceLookup for ConfigFinder {
 }
 impl ConfigFinder {
     pub fn new(config: &KeyboardConfig, args: &impl DeviceLookup) -> Result<Self> {
-        let vendor_id = parse_hex(&config.firmware_get("vendor_id"))?;
-        let product_id = parse_hex(&config.firmware_get("product_id"))?;
+        let vendor_id = parse_firmware_hex(config, "vendor_id")?;
+        let product_id = parse_firmware_hex(config, "product_id")?;
         Ok(Self {
             vendor_id: args.vendor_id().or(vendor_id),
             product_id: args.product_id().or(product_id),
             serial_number: if args.serial_number().is_empty() {
                 config
-                    .firmware_get("serial_number")
+                    .firmware_get_str("serial_number")
                     .unwrap_or_default()
                     .to_string()
             } else {

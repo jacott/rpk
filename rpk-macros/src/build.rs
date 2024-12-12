@@ -1,18 +1,16 @@
 use proc_macro2::TokenStream;
-use quote::quote;
-use regex::{Captures, Regex};
+use quote::{quote, ToTokens};
 use rpk_config::{
-    compiler::{compile, KeyboardConfig},
+    compiler::{compile, KeyboardConfig, SourceRange},
     ConfigError,
 };
 use std::{
-    borrow::Cow,
     env,
     fmt::Display,
     fs,
     path::{Path, PathBuf},
 };
-use syn::{visit::Visit, Lit};
+use syn::{visit::Visit, visit_mut::VisitMut, Lit};
 
 #[derive(Debug)]
 struct BuildError(String);
@@ -49,6 +47,41 @@ type Result<T> = std::result::Result<T, BuildError>;
 fn compile_error(message: &str) -> TokenStream {
     quote! {
         compile_error!(#message);
+
+        macro_rules! config_pins {
+            (peripherals: $p:ident) => {
+                ([],[])
+            };
+        }
+
+        const LAYOUT_MAPPING: &[u16] = &[];
+
+        const INPUT_N: usize = 0;
+        const OUTPUT_N: usize = 0;
+        const ROW_COUNT: usize = 0;
+        const COL_COUNT: usize = 0;
+        const ROW_IS_OUTPUT: bool = true;
+        const LAYOUT_MAX: usize = 0;
+
+        const FLASH_SIZE: usize = 0;
+        const FS_BASE: usize = 0;
+        const FS_SIZE: usize = 0;
+
+        static CONFIG_BUILDER: rpk_builder::usb::ConfigBuilder = rpk_builder::usb::ConfigBuilder {
+            vendor_id: 0,
+            product_id: 0,
+            manufacturer: "",
+            product: "",
+            serial_number: "",
+            max_power: 0,
+        };
+
+        const SCANNER_BUFFER_SIZE: usize = 32;
+        const REPORT_BUFFER_SIZE: usize = 32;
+
+        type Flash = flash::Flash<'static, FLASH, Async, 4096>;
+        type Rfs = NorflashRingFs<'static, Flash, 0, 4096,
+          { flash::ERASE_SIZE as u32 }, { flash::PAGE_SIZE }, >;
     }
 }
 
@@ -94,7 +127,7 @@ fn cargo_dir() -> Result<PathBuf> {
 fn quote_conf(source_file: &Path) -> Result<TokenStream> {
     let source = read_conf(source_file)?;
 
-    let config = compile(source.as_str())
+    let config = compile(PathBuf::from(source_file), source.as_str())
         .map_err(|e| BuildError::compile_err(e, source_file, source.as_str()))?;
 
     let (defs, input_pins, output_pins) = parse_firmware(&config)?;
@@ -184,36 +217,68 @@ fn syn_bool(input: &TokenStream) -> Result<bool> {
 }
 
 fn parse_firmware(config: &KeyboardConfig) -> Result<(TokenStream, TokenStream, TokenStream)> {
-    let vre = Regex::new(r"([a-zA-Z_]+)").map_err(|e| BuildError(e.to_string()))?;
+    struct SynIdent<'a>(&'a KeyboardConfig<'a>, bool);
+    impl<'a> SynIdent<'a> {
+        fn get_range(&mut self, key: &str) -> Result<SourceRange> {
+            self.0
+                .firmware_get(key)
+                .ok_or_else(|| BuildError(format!("Missing required firmware config: {}", key)))
+        }
 
-    let get_var = |v: &str| {
-        let v = config
-            .firmware_get(v)
-            .ok_or_else(|| BuildError(format!("Missing required firmware config: {}", v)))?;
+        fn get_var(&mut self, key: &str) -> Result<&'a str> {
+            let v = self.get_range(key)?;
+            Ok(self.0.trim_value(&v))
+        }
 
-        let v = vre.replace_all(v, |caps: &Captures| {
-            if let Some(v) = config.firmware_get(&caps[1]) {
-                v.to_owned()
+        fn parse_var(&mut self, key: &str) -> Result<TokenStream> {
+            let vr = self.get_range(key)?;
+            let text = self.0.trim_value(&vr);
+            let mut expr: syn::Expr = syn::parse_str(text).map_err(|e| {
+                BuildError::compile_err(
+                    ConfigError::new(e.to_string(), vr.start..vr.end),
+                    self.0.path.as_path(),
+                    self.0.source,
+                )
+            })?;
+
+            let ss = self.1;
+
+            self.visit_expr_mut(&mut expr);
+
+            if self.1 != ss {
+                Err(BuildError::compile_err(
+                    ConfigError::new("Unknown identifier".into(), vr.start..vr.end),
+                    self.0.path.as_path(),
+                    self.0.source,
+                ))
             } else {
-                caps[0].to_owned()
+                Ok(expr.to_token_stream())
             }
-        });
-
-        Ok::<Cow<'_, str>, BuildError>(v)
-    };
+        }
+    }
+    impl VisitMut for SynIdent<'_> {
+        fn visit_ident_mut(&mut self, i: &mut proc_macro2::Ident) {
+            let key = i.to_string();
+            if self.0.firmware_get(&key).is_some() {
+                *i = proc_macro2::Ident::new(key.to_uppercase().as_str(), i.span());
+            } else {
+                self.1 = true;
+            }
+        }
+    }
 
     macro_rules! get {
-        ($f:tt) => {
-            let $f = get_var(stringify!($f))?;
+        ($f:ident) => {
+            let $f = SynIdent(config, false).get_var(stringify!($f))?;
         };
     }
 
     macro_rules! parse {
-        ($f:tt) => {
-            get!($f);
-            let $f = $f
-                .parse::<TokenStream>()
-                .map_err(|e| BuildError(format!("Error parsing {}: {e}", $f)))?;
+        ($f:ident) => {
+            let $f = SynIdent(config, false).parse_var(stringify!($f))?;
+        };
+        (PIN: $f:ident) => {
+            let $f = SynIdent(config, true).parse_var(stringify!($f))?;
         };
     }
 
@@ -230,8 +295,18 @@ fn parse_firmware(config: &KeyboardConfig) -> Result<(TokenStream, TokenStream, 
     parse!(fs_base);
     parse!(fs_size);
 
-    parse!(input_pins);
-    parse!(output_pins);
+    get!(chip);
+    parse!(PIN: input_pins);
+    parse!(PIN: output_pins);
+
+    if chip != "rp2040" {
+        let vr = config.firmware_get("chip").unwrap();
+        return Err(BuildError::compile_err(
+            ConfigError::new("Unknown/Unsupported chipset".into(), vr.start..vr.end),
+            config.path.as_path(),
+            config.source,
+        ));
+    }
 
     get!(manufacturer);
     get!(product);

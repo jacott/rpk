@@ -1,4 +1,4 @@
-use std::{collections::HashMap, ops::Range, str::CharIndices};
+use std::{collections::HashMap, ops::Range, path::PathBuf, str::CharIndices};
 
 use rpk_common::{
     keycodes::{
@@ -19,7 +19,7 @@ use crate::{
 
 type Result<T> = core::result::Result<T, ConfigError>;
 type IndexChar = (usize, char);
-type NameRange = Range<usize>;
+pub type SourceRange = Range<usize>;
 
 const TOO_MANY_RHS: &str = "Only one value may be assigned";
 const TOO_MANY_MULTI_ALIAS_RHS: &str =
@@ -27,7 +27,6 @@ const TOO_MANY_MULTI_ALIAS_RHS: &str =
 const TOO_MANY_ROWS: &str = "Too many rows";
 const TOO_MANY_COLS: &str = "Too many keys in row";
 const UNKNOWN_ACTION: &str = "Unknown action/keycode";
-const SYNTAX_ERROR: &str = "Syntax error";
 const EOF: &str = "Unexpected end of file";
 
 struct SourceIter<'source> {
@@ -122,10 +121,11 @@ fn invalid_section_char(c: char) -> bool {
 }
 
 pub struct KeyboardConfig<'source> {
+    pub path: PathBuf,
     pub source: &'source str,
     pub global_map: HashMap<&'source str, GlobalProp>,
     pub temp_map: HashMap<&'source str, u16>,
-    pub firmware_map: HashMap<&'source str, &'source str>,
+    pub firmware_map: HashMap<&'source str, SourceRange>,
     pub matrix_map: HashMap<String, Vec<u16>>,
     layers: HashMap<String, ConfigLayer>,
     macros_names: HashMap<Vec<u16>, u16>,
@@ -190,10 +190,10 @@ fn binary_seq(id: u16, seq: &[u16]) -> Vec<u16> {
 }
 
 impl<'source> Parser<'source> {
-    fn new(source: &'source str) -> Self {
+    fn new(path: PathBuf, source: &'source str) -> Self {
         Self {
             iter: SourceIter::new(source.char_indices(), source.len()),
-            config: KeyboardConfig::new(source),
+            config: KeyboardConfig::new(path, source),
             mark_idx: 0,
         }
     }
@@ -247,7 +247,7 @@ impl<'source> Parser<'source> {
         }
     }
 
-    fn parse_global(&mut self, suffix: NameRange) -> Result<()> {
+    fn parse_global(&mut self, suffix: SourceRange) -> Result<()> {
         if suffix.start < suffix.end {
             let name = self.name(&suffix);
             let (name, field) = name.split_once('.').unwrap_or((name, ""));
@@ -298,7 +298,7 @@ impl<'source> Parser<'source> {
         Ok(())
     }
 
-    fn assign_global(&mut self, name_range: &NameRange, value_range: &NameRange) -> Result<()> {
+    fn assign_global(&mut self, name_range: &SourceRange, value_range: &SourceRange) -> Result<()> {
         let name = self.name(name_range);
         match name {
             "unicode_prefix" | "unicode_suffix" => {
@@ -402,12 +402,7 @@ impl<'source> Parser<'source> {
                         .find(|c| c == '\n')
                         .unwrap_or((self.config.source.len(), '\0'));
                     let key = self.name(&key);
-                    let value = self.trim_value(&(right.start..eol.0));
-                    value
-                        .replace("#", "//")
-                        .parse::<proc_macro2::TokenStream>()
-                        .map_err(|_| error_span(SYNTAX_ERROR, right.start..eol.0))?;
-                    self.config.firmware_map.insert(key, value);
+                    self.config.firmware_map.insert(key, right.start..eol.0);
                 }
             }
         }
@@ -480,7 +475,7 @@ impl<'source> Parser<'source> {
         }
     }
 
-    fn read_action(&mut self, name_range: NameRange) -> Result<u16> {
+    fn read_action(&mut self, name_range: SourceRange) -> Result<u16> {
         let name = self.name(&name_range);
 
         if let Some(code) = keycodes::key_code(name) {
@@ -504,7 +499,7 @@ impl<'source> Parser<'source> {
         }
     }
 
-    fn read_arg(&mut self) -> NameRange {
+    fn read_arg(&mut self) -> SourceRange {
         self.read(invalid_arg_char)
     }
 
@@ -513,7 +508,7 @@ impl<'source> Parser<'source> {
         self.config.parse_duration(&nr, 5000)
     }
 
-    fn read(&mut self, f: impl Fn(char) -> bool) -> NameRange {
+    fn read(&mut self, f: impl Fn(char) -> bool) -> SourceRange {
         if let Some(start) = self.next_non_ws() {
             if invalid_seq_char(start.1) {
                 self.iter.put_back(start);
@@ -531,7 +526,7 @@ impl<'source> Parser<'source> {
         }
     }
 
-    fn read_sequence(&mut self) -> NameRange {
+    fn read_sequence(&mut self) -> SourceRange {
         if let Some(start) = self.next_non_ws() {
             if invalid_seq_char(start.1) {
                 self.iter.put_back(start);
@@ -560,17 +555,8 @@ impl<'source> Parser<'source> {
         Err(self.error(format!("Expected {} ", c)))
     }
 
-    fn name(&self, name_range: &NameRange) -> &'source str {
-        self.config.name(name_range)
-    }
-
-    fn trim_value(&self, name_range: &NameRange) -> &'source str {
-        let mut value = &self.config.source[name_range.start..name_range.end];
-        if let Some(i) = value.rfind('#') {
-            value = &value[..i];
-        }
-
-        value.trim()
+    fn name(&self, name_range: &SourceRange) -> &'source str {
+        self.config.text(name_range)
     }
 
     fn dualaction(&mut self, hold: u16) -> Result<u16> {
@@ -601,7 +587,7 @@ impl<'source> Parser<'source> {
         })
     }
 
-    fn parse_macro(&mut self, name_range: NameRange) -> Result<u16> {
+    fn parse_macro(&mut self, name_range: SourceRange) -> Result<u16> {
         let name = self.name(&name_range);
         let id = match name {
             "macro" => {
@@ -790,7 +776,7 @@ impl<'source> Parser<'source> {
         id
     }
 
-    fn get_layer_index(&mut self, name_range: NameRange) -> Result<u16> {
+    fn get_layer_index(&mut self, name_range: SourceRange) -> Result<u16> {
         let name = &self.config.source[name_range.start..name_range.end];
         if let Some(index) = self.config.get_layer_index(name) {
             Ok(index)
@@ -822,7 +808,7 @@ impl<'source> Parser<'source> {
         Err(self.error("Invalid layer(...) action"))
     }
 
-    fn parse_assignment(&mut self) -> Result<Option<(NameRange, NameRange)>> {
+    fn parse_assignment(&mut self) -> Result<Option<(SourceRange, SourceRange)>> {
         if let Some(left) = self.read_word()? {
             if self.match_char('=') {
                 if let Some(right) = self.next_assignment_value() {
@@ -837,7 +823,7 @@ impl<'source> Parser<'source> {
         Ok(None)
     }
 
-    fn next_assignment_value(&mut self) -> Option<NameRange> {
+    fn next_assignment_value(&mut self) -> Option<SourceRange> {
         let start = self.iter.find(|c| c == '\n' || !c.is_whitespace())?;
         self.mark_start();
         if start.1 == '\n' {
@@ -867,7 +853,7 @@ impl<'source> Parser<'source> {
         ConfigError::new(message.into(), self.mark_idx..self.iter.current.0)
     }
 
-    fn read_word(&mut self) -> Result<Option<NameRange>> {
+    fn read_word(&mut self) -> Result<Option<SourceRange>> {
         match self.iter.find(|c| c == '\n' || !c.is_whitespace()) {
             None => Ok(None),
             Some(start) => {
@@ -940,18 +926,20 @@ const DEFAULT_LAYERS: [(&str, u8); 6] = [
     ("main", 0),
 ];
 
+#[cfg(test)]
 fn data_to_usize(x: u16) -> usize {
     u16::from_le(x) as usize
 }
 
 impl<'source> KeyboardConfig<'source> {
-    fn new(source: &'source str) -> Self {
+    fn new(path: PathBuf, source: &'source str) -> Self {
         let mut layers: HashMap<String, ConfigLayer> = Default::default();
         for (i, (name, code)) in DEFAULT_LAYERS.into_iter().enumerate() {
             layers.insert(name.into(), ConfigLayer::new(i as u16, code));
         }
 
         Self {
+            path,
             source,
             global_map: Default::default(),
             temp_map: Default::default(),
@@ -966,11 +954,12 @@ impl<'source> KeyboardConfig<'source> {
         }
     }
 
-    pub fn deserialize(data: &[u16]) -> Self {
+    #[cfg(test)]
+    fn deserialize(data: &[u16]) -> Self {
         assert!(data.len() > 14);
         assert_eq!(data[0], PROTOCOL_VERSION);
 
-        let mut config = Self::new("");
+        let mut config = Self::new(PathBuf::from(""), "");
 
         config.row_count = (u16::from_le(data[1]) >> 8) as u8;
         config.col_count = (u16::from_le(data[1]) & 0xff) as u8;
@@ -984,7 +973,7 @@ impl<'source> KeyboardConfig<'source> {
 
         for (i, (name, _)) in DEFAULT_LAYERS.into_iter().enumerate() {
             let layer = config.layers.get_mut(name).unwrap();
-            layer.set_binary(
+            layer.deserialize(
                 &data[data_to_usize(data[i])..data_to_usize(data[1 + i])],
                 config.row_count as usize,
                 config.col_count as usize,
@@ -995,7 +984,7 @@ impl<'source> KeyboardConfig<'source> {
             let name = format!("layer{}", i);
             config.new_layer(name.as_str(), 0);
             let layer = config.layers.get_mut(name.as_str()).unwrap();
-            layer.set_binary(
+            layer.deserialize(
                 &data[data_to_usize(data[i])..data_to_usize(data[1 + i])],
                 config.row_count as usize,
                 config.col_count as usize,
@@ -1060,13 +1049,23 @@ impl<'source> KeyboardConfig<'source> {
         out.into_iter().flat_map(|v| v.serialize()).collect()
     }
 
-    fn name(&self, name_range: &NameRange) -> &'source str {
-        let start = if name_range.len() > 1 && self.source[name_range.start..].starts_with('\\') {
-            name_range.start + 1
+    pub fn text(&self, source_range: &SourceRange) -> &'source str {
+        let start = if source_range.len() > 1 && self.source[source_range.start..].starts_with('\\')
+        {
+            source_range.start + 1
         } else {
-            name_range.start
+            source_range.start
         };
-        &self.source[start..name_range.end]
+        &self.source[start..source_range.end]
+    }
+
+    pub fn trim_value(&self, source_range: &SourceRange) -> &'source str {
+        let mut value = &self.source[source_range.start..source_range.end];
+        if let Some(i) = value.rfind('#') {
+            value = &value[..i];
+        }
+
+        value.trim()
     }
 
     fn unicode_to_seq(&mut self, uc: char) -> Vec<u16> {
@@ -1092,8 +1091,8 @@ impl<'source> KeyboardConfig<'source> {
         seq
     }
 
-    fn parse_duration(&mut self, value_range: &NameRange, max: u16) -> Result<u16> {
-        if let Ok(n) = self.name(value_range).parse::<u16>() {
+    fn parse_duration(&mut self, value_range: &SourceRange, max: u16) -> Result<u16> {
+        if let Ok(n) = self.text(value_range).parse::<u16>() {
             if n <= max {
                 return Ok(n);
             }
@@ -1309,14 +1308,18 @@ impl<'source> KeyboardConfig<'source> {
         Ok(())
     }
 
-    pub fn firmware_get(&self, arg: &str) -> Option<&str> {
+    pub fn firmware_get(&self, arg: &str) -> Option<SourceRange> {
         self.firmware_map
             .get(arg)
             .or_else(|| {
                 let arg = arg.to_uppercase();
                 self.firmware_map.get(arg.as_str())
             })
-            .copied()
+            .map(|v| v.start..v.end)
+    }
+
+    pub fn firmware_get_str(&self, arg: &str) -> Option<&str> {
+        self.firmware_get(arg).map(|v| self.text(&v))
     }
 }
 
@@ -1329,7 +1332,8 @@ impl ConfigLayer {
         }
     }
 
-    fn set_binary(&mut self, data: &[u16], row_count: usize, col_count: usize) {
+    #[cfg(test)]
+    fn deserialize(&mut self, data: &[u16], row_count: usize, col_count: usize) {
         self.suffix = u16::from_le(data[0]) as u8;
 
         let data = &data[1..];
@@ -1388,12 +1392,12 @@ impl ConfigLayer {
     }
 }
 
-fn error_span(message: impl Into<String>, range: NameRange) -> ConfigError {
+fn error_span(message: impl Into<String>, range: SourceRange) -> ConfigError {
     ConfigError::new(message.into(), range)
 }
 
-pub fn compile(source: &str) -> Result<KeyboardConfig> {
-    let mut parser = Parser::new(source);
+pub fn compile(path: PathBuf, source: &str) -> Result<KeyboardConfig> {
+    let mut parser = Parser::new(path, source);
 
     parser.parse_sections()?;
     Ok(parser.build_config())
