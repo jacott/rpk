@@ -10,7 +10,12 @@ pub mod spec {
 
     #[derive(Clone, Copy, Debug)]
     pub enum GlobalType {
-        Timeout(u16),
+        Timeout {
+            value: u16,
+            max: u16,
+            min: u16,
+            dp: i32,
+        },
         MouseProfile(MouseConfig),
     }
     use GlobalType::*;
@@ -31,34 +36,17 @@ pub mod spec {
                 .copied()
         }
 
-        pub fn parse(name: &str, value: &str) -> Result<GlobalProp, String> {
-            let p = super::DEFAULTS
-                .get(name)
-                .ok_or_else(|| format!("Invalid global '{}'", name))?;
-
-            Ok(GlobalProp {
-                index: p.index,
-                spec: match p.spec {
-                    Timeout(_) => GlobalType::Timeout(
-                        value
-                            .parse::<u16>()
-                            .map_err(|_| format!("value '{}' is not a number", value))?,
-                    ),
-                    _ => unreachable!(),
-                },
-            })
-        }
-
         pub fn default_name(&self) -> Option<&'static str> {
             super::INDEX_TO_NAME.get(self.index as usize).copied()
         }
 
+        #[cfg(test)]
         pub fn deserialize(data: &mut impl Iterator<Item = u16>) -> Option<Self> {
             let index = data.next()?;
             let name = super::INDEX_TO_NAME.get(index as usize).copied()?;
             let mut gp = GlobalProp::new_default(name).ok()?;
             match gp.spec {
-                Timeout(ref mut n) => *n = data.next()?,
+                Timeout { ref mut value, .. } => *value = data.next()?,
                 MouseProfile(ref mut config) => {
                     config.movement = MouseAnalogSetting::deserialize(data)?;
                     config.scroll = MouseAnalogSetting::deserialize(data)?;
@@ -70,7 +58,7 @@ pub mod spec {
 
         pub fn serialize(self) -> Box<dyn Iterator<Item = u16>> {
             match self.spec {
-                Timeout(v) => Box::new([self.index, v].into_iter()),
+                Timeout { value, .. } => Box::new([self.index, value].into_iter()),
                 MouseProfile(MouseConfig { movement, scroll }) => Box::new(
                     [self.index]
                         .into_iter()
@@ -129,14 +117,33 @@ pub mod spec {
         a.trim().parse::<f32>().map_err(|e| format!("{} {a}", e))
     }
 
-    pub(super) const GLOBALS: [GlobalProp; 5] = [
+    pub(super) const GLOBALS: [GlobalProp; 6] = [
         GlobalProp {
             index: globals::DUAL_ACTION_TIMEOUT,
-            spec: GlobalType::Timeout(globals::DUAL_ACTION_TIMEOUT_DEFAULT),
+            spec: GlobalType::Timeout {
+                value: globals::DUAL_ACTION_TIMEOUT_DEFAULT,
+                min: 0,
+                max: 5000,
+                dp: 0,
+            },
         },
         GlobalProp {
             index: globals::DUAL_ACTION_TIMEOUT2,
-            spec: GlobalType::Timeout(globals::DUAL_ACTION_TIMEOUT2_DEFAULT),
+            spec: GlobalType::Timeout {
+                value: globals::DUAL_ACTION_TIMEOUT2_DEFAULT,
+                min: 0,
+                max: 5000,
+                dp: 0,
+            },
+        },
+        GlobalProp {
+            index: globals::DEBOUNCE_SETTLE_TIME,
+            spec: GlobalType::Timeout {
+                value: globals::DEBOUNCE_SETTLE_TIME_DEFAULT,
+                min: 1,
+                max: 250,
+                dp: 1,
+            },
         },
         GlobalProp {
             index: globals::MOUSE_PROFILE1,
@@ -154,9 +161,10 @@ pub mod spec {
 }
 
 lazy_static! {
-    pub static ref INDEX_TO_NAME: [&'static str; 5] = [
+    pub static ref INDEX_TO_NAME: [&'static str; 6] = [
         "dual_action_timeout",
         "dual_action_timeout2",
+        "debounce_settle_time",
         "mouse_profile1",
         "mouse_profile2",
         "mouse_profile3",

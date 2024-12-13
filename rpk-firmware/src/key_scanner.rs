@@ -1,13 +1,13 @@
+use core::sync::atomic;
+
 use embassy_futures::select::select_slice;
 use embassy_sync::{blocking_mutex::raw::RawMutex, channel::Channel};
-use embassy_time::{Instant, Timer};
+use embassy_time::{Duration, Instant, Timer};
 use embedded_hal::digital::{InputPin, OutputPin};
 use embedded_hal_async::digital::Wait;
 use heapless::Vec;
 
-use crate::info;
-
-const WAIT_NANOS: u64 = 100;
+const IDLE_WAIT_MS: u32 = 2_000;
 
 #[derive(Debug, Clone, Copy)]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
@@ -67,33 +67,11 @@ impl ScanKey {
 }
 
 pub struct KeyScannerChannel<M: RawMutex, const N: usize>(Channel<M, ScanKey, N>);
-
-pub struct KeyScanner<
-    'c,
-    I: InputPin + Wait,
-    O: OutputPin,
-    M: RawMutex,
-    const INPUT_N: usize,
-    const OUTPUT_N: usize,
-    const PS: usize,
-> {
-    input_pins: [I; INPUT_N],
-    output_pins: [O; OUTPUT_N],
-    /// Keeps track of all key switch changes and debounce settling timer.  Bit 7 indicates debouncing,
-    /// bits 6-2 are debounce counter, bit 1 indicates last reported switch position, bit 0 indicates
-    /// actual switch position.
-    state: [[u8; INPUT_N]; OUTPUT_N],
-    scan_start: Option<Instant>,
-    channel: &'c KeyScannerChannel<M, PS>,
-    debounce: usize,
-}
-
 impl<M: RawMutex, const N: usize> Default for KeyScannerChannel<M, N> {
     fn default() -> Self {
         Self(Channel::new())
     }
 }
-
 impl<M: RawMutex, const N: usize> KeyScannerChannel<M, N> {
     pub async fn receive(&self) -> ScanKey {
         self.0.receive().await
@@ -110,6 +88,32 @@ impl<M: RawMutex, const N: usize> KeyScannerChannel<M, N> {
     }
 }
 
+pub struct KeyScanner<
+    'c,
+    I: InputPin + Wait,
+    O: OutputPin,
+    M: RawMutex,
+    const INPUT_N: usize,
+    const OUTPUT_N: usize,
+    const PS: usize,
+> {
+    input_pins: [I; INPUT_N],
+    output_pins: [O; OUTPUT_N],
+    /// Keeps track of all key switch changes and debounce settling timer.  > 3 indicates debouncing,
+    /// bits 7-2 are debounce counter, bit 1 indicates last reported switch position, bit 0 indicates
+    /// actual switch position.
+    state: [[u8; INPUT_N]; OUTPUT_N],
+    all_up: bool,
+    all_up_limit: u32,
+    channel: &'c KeyScannerChannel<M, PS>,
+    cycle: u32,
+    debounce_modulus: u32,
+    debounce_divisor: u32,
+    pin_wait: Duration,
+    now: Instant,
+    clock: Instant,
+    debounce_ms_atomic: &'c atomic::AtomicU8,
+}
 impl<
         'c,
         I: InputPin + Wait,
@@ -124,61 +128,81 @@ impl<
         input_pins: [I; INPUT_N],
         output_pins: [O; OUTPUT_N],
         channel: &'c KeyScannerChannel<M, PS>,
+        debounce_ms_atomic: &'c atomic::AtomicU8,
     ) -> Self {
-        Self {
+        let mut ks = Self {
             input_pins,
             output_pins,
             state: [[0; INPUT_N]; OUTPUT_N],
-            scan_start: None,
+            all_up: false,
+            all_up_limit: 0,
             channel,
-            debounce: 0,
-        }
+            cycle: 0,
+            debounce_modulus: 0,
+            debounce_divisor: 0,
+            pin_wait: Duration::from_micros(5),
+            now: Instant::now(),
+            clock: Instant::now(),
+            debounce_ms_atomic,
+        };
+
+        ks.calc_debounce_cycle();
+        ks.all_up_limit = 10;
+
+        ks
     }
 
-    pub async fn run<const ROW_IS_OUTPUT: bool, const DEBOUNCE_TUNE: usize>(&mut self) {
-        assert!(DEBOUNCE_TUNE < usize::BITS as usize);
+    pub async fn run<const ROW_IS_OUTPUT: bool>(&mut self) {
         loop {
-            // If no key for over 2 secs, wait for interupt
-            if self.scan_start.is_some_and(|s| s.elapsed().as_secs() > 1) {
-                let _waited = self.wait_for_key().await;
-            }
+            self.scan::<ROW_IS_OUTPUT>().await;
 
-            self.scan::<ROW_IS_OUTPUT, DEBOUNCE_TUNE>().await;
+            // If no key for over IDLE_WAIT_MS, wait for interupt
+            if self.all_up && self.cycle >= self.all_up_limit {
+                self.wait_for_key().await;
+            }
         }
     }
 
-    pub async fn wait_for_key(&mut self) -> bool {
-        self.scan_start = None;
+    pub async fn wait_for_key(&mut self) {
+        {
+            // calc pin_wait; make twice what's needed so idle half the time
+            let t = (Instant::now() - self.clock).as_micros() as u32;
+            let t = (t.max(20) - 20) / self.cycle; // cycle duration with 20µs leeway
+            let pw = t / (OUTPUT_N as u32);
+            let opw = self.pin_wait.as_micros() as u32;
+            if opw < pw {
+                self.pin_wait = Duration::from_micros((pw << 1).clamp(1, 300) as u64);
+            }
+        }
+        self.all_up = false;
 
-        // First, set all output pin to low
         for out in self.output_pins.iter_mut() {
             let _ = out.set_low();
         }
-        Timer::after_micros(1).await;
-        info!("Waiting for low");
+        Timer::after_micros(10).await;
+        {
+            let mut futs: Vec<_, INPUT_N> = self
+                .input_pins
+                .iter_mut()
+                .map(|input_pin| input_pin.wait_for_low())
+                .collect();
+            let _ = select_slice(futs.as_mut_slice()).await;
+        }
 
-        let mut futs: Vec<_, INPUT_N> = self
-            .input_pins
-            .iter_mut()
-            .map(|input_pin| input_pin.wait_for_low())
-            .collect();
-        let _ = select_slice(futs.as_mut_slice()).await;
-
-        // Set all output pins back to low
         for out in self.output_pins.iter_mut() {
             let _ = out.set_high();
         }
 
-        true
+        self.calc_debounce_cycle();
+        self.now = Instant::now();
     }
 
-    pub async fn scan<const ROW_IS_OUTPUT: bool, const DEBOUNCE_TUNE: usize>(&mut self) {
+    pub async fn scan<const ROW_IS_OUTPUT: bool>(&mut self) {
         // debounce on, down cleared for compare
-        let debounce = debounce_sensitivity::<DEBOUNCE_TUNE>(self.debounce);
+        let debounce = self.debounce_from_cycle();
 
         // We will soon sleep if all up
         let mut is_all_up = true;
-
         for (output_idx, (op, s)) in self
             .output_pins
             .iter_mut()
@@ -186,13 +210,14 @@ impl<
             .enumerate()
         {
             let _ = op.set_low();
-            Timer::after_nanos(WAIT_NANOS).await;
+            self.now += self.pin_wait;
+            Timer::at(self.now).await;
 
             for (input_idx, (ip, s)) in self.input_pins.iter_mut().zip(s.iter_mut()).enumerate() {
                 let settle = *s & !3; // down states cleared for compare
 
-                let is_down = if ip.is_low().unwrap_or(false) { 1 } else { 0 };
-                let mut changed = *s & 1 != is_down;
+                let key_state = if ip.is_low().unwrap_or(false) { 1 } else { 0 };
+                let mut changed = *s & 1 != key_state;
 
                 if settle != 0 {
                     if settle == debounce {
@@ -204,24 +229,27 @@ impl<
                         is_all_up = false;
                         if changed {
                             // restart settle counter
-                            *s = debounce_start::<DEBOUNCE_TUNE>(is_down, *s & 2, self.debounce);
+                            *s =
+                                start_debounce(debounce, key_state | *s & 2, self.debounce_modulus);
                         }
                         continue;
                     }
+                } else if changed {
+                    is_all_up = false;
+                    *s = start_debounce(debounce, key_state * 3, self.debounce_modulus);
                 }
-                if is_down == 1 {
+
+                if key_state == 1 {
                     is_all_up = false;
                 }
 
                 if changed {
-                    // set debounce state and counter to prev value
-                    *s = debounce_start::<DEBOUNCE_TUNE>(is_down, is_down << 1, self.debounce);
                     self.channel
                         .0
                         .send(if ROW_IS_OUTPUT {
-                            ScanKey::new(output_idx as u8, input_idx as u8, is_down == 1)
+                            ScanKey::new(output_idx as u8, input_idx as u8, key_state == 1)
                         } else {
-                            ScanKey::new(input_idx as u8, output_idx as u8, is_down == 1)
+                            ScanKey::new(input_idx as u8, output_idx as u8, key_state == 1)
                         })
                         .await;
                 }
@@ -230,38 +258,44 @@ impl<
             let _ = op.set_high();
         }
 
-        self.debounce = self.debounce.wrapping_add(2);
+        self.cycle = self.cycle.wrapping_add(1);
 
         if is_all_up {
-            if self.scan_start.is_none() {
-                self.scan_start = Some(Instant::now());
+            if !self.all_up {
+                self.all_up = true;
+                self.cycle = 0;
+                self.clock = self.now;
             }
-        } else if self.scan_start.is_some() {
-            self.scan_start = None;
+        } else {
+            self.all_up = false;
         }
+    }
+
+    fn calc_debounce_cycle(&mut self) {
+        let w = self.pin_wait.as_micros() as u32 * OUTPUT_N as u32;
+
+        self.all_up_limit = IDLE_WAIT_MS * 1000 / w;
+
+        let m =
+            (self.debounce_ms_atomic.load(atomic::Ordering::Relaxed) as u32).clamp(1, 250) * 100;
+        let l = m / w;
+        let f = l / 252 + 1;
+        self.debounce_divisor = f;
+        self.debounce_modulus = (4 + (l / f).clamp(4, 248)) & !3;
+    }
+
+    fn debounce_from_cycle(&self) -> u8 {
+        4 + (((self.cycle / self.debounce_divisor) % self.debounce_modulus) as u8 & !3)
     }
 }
 
-fn debounce_sensitivity<const DEBOUNCE_TUNE: usize>(debounce: usize) -> u8 {
-    ((if DEBOUNCE_TUNE < 4 {
-        debounce << (4 - DEBOUNCE_TUNE) // more sensitive
-    } else {
-        debounce >> (DEBOUNCE_TUNE - 4) // less sensitive
-    } as u8)
-        << 2)
-        | 0x80
-}
-
-fn debounce_start<const DEBOUNCE_TUNE: usize>(
-    is_down: u8,
-    reported_down: u8,
-    debounce: usize,
-) -> u8 {
-    debounce_sensitivity::<DEBOUNCE_TUNE>(debounce.wrapping_sub(if DEBOUNCE_TUNE < 4 {
-        0
-    } else {
-        1 << (DEBOUNCE_TUNE - 3)
-    })) | (is_down | reported_down)
+fn start_debounce(debounce: u8, key_state: u8, modulus: u32) -> u8 {
+    key_state
+        | if debounce < 8 {
+            (modulus - 4) as u8
+        } else {
+            debounce - 4
+        }
 }
 
 #[cfg(test)]

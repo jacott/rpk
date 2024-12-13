@@ -1,4 +1,4 @@
-use core::{cell::RefCell, cmp::min};
+use core::{cell::RefCell, cmp::min, sync::atomic};
 
 use dual_action::DualActionTimer;
 use embassy_futures::select::{select, Either};
@@ -276,6 +276,7 @@ pub struct Mapper<
     macro_running: Macro,
     memo_count: usize,
     now: u64,
+    debounce_ms_atomic: &'c atomic::AtomicU8,
 }
 impl<
         'c,
@@ -287,7 +288,10 @@ impl<
     > Mapper<'c, ROW_COUNT, COL_COUNT, LAYOUT_MAX, M, REPORT_BUFFER_SIZE>
 {
     const OKAY: bool = assert_sizes::<LAYOUT_MAX, REPORT_BUFFER_SIZE>();
-    pub fn new(report_channel: &'c MapperChannel<M, REPORT_BUFFER_SIZE>) -> Self {
+    pub fn new(
+        report_channel: &'c MapperChannel<M, REPORT_BUFFER_SIZE>,
+        debounce_ms_atomic: &'c atomic::AtomicU8,
+    ) -> Self {
         assert!(Self::OKAY);
         Self {
             layout: layout::Manager::default(),
@@ -302,6 +306,7 @@ impl<
             macro_running: Macro::Noop,
             memo_count: 0,
             now: 1,
+            debounce_ms_atomic,
         }
     }
 
@@ -525,6 +530,11 @@ impl<
         self.layout.load(layout_mapping)?;
         self.mouse
             .set_config(self.layout.get_mouse_profile(1).unwrap());
+        self.debounce_ms_atomic.store(
+            self.layout.global(globals::DEBOUNCE_SETTLE_TIME as usize) as u8,
+            atomic::Ordering::Relaxed,
+        );
+
         Ok(())
     }
 

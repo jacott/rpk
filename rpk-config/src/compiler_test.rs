@@ -850,7 +850,12 @@ fn global_dual_action_timeout() {
         let config = config.unwrap();
         assert!(matches!(
             config.global("dual_action_timeout").unwrap().spec,
-            GlobalType::Timeout(500)
+            GlobalType::Timeout {
+                value: 500,
+                min: 0,
+                max: 5000,
+                dp: 0
+            }
         ));
 
         let bin = config.serialize();
@@ -872,7 +877,12 @@ fn global_dual_action_timeout2() {
         let config = config.unwrap();
         assert!(matches!(
             config.global("dual_action_timeout2").unwrap().spec,
-            GlobalType::Timeout(50)
+            GlobalType::Timeout {
+                value: 50,
+                min: 0,
+                max: 5000,
+                dp: 0
+            }
         ));
 
         let bin = config.serialize();
@@ -880,6 +890,33 @@ fn global_dual_action_timeout2() {
         assert_eq!(
             bin,
             [1, 0, 7, 0, 2, 1, 50, 8, 9, 10, 11, 12, 13, 14, 15, 1, 2, 4, 8, 64, 0, 0]
+        );
+    });
+}
+
+#[test]
+fn global_debounce_settle_time() {
+    let config = test_compile("").unwrap();
+
+    assert!(config.global("debounce_settle_time").is_none());
+
+    compile_global!(src, config, "debounce_settle_time", 23.5, {
+        let config = config.unwrap();
+        assert!(matches!(
+            config.global("debounce_settle_time").unwrap().spec,
+            GlobalType::Timeout {
+                value: 235,
+                min: 1,
+                max: 250,
+                dp: 1
+            }
+        ));
+
+        let bin = config.serialize();
+
+        assert_eq!(
+            bin,
+            [1, 0, 7, 0, 2, 2, 235, 8, 9, 10, 11, 12, 13, 14, 15, 1, 2, 4, 8, 64, 0, 0]
         );
     });
 }

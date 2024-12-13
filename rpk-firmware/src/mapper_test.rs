@@ -1,4 +1,4 @@
-use core::str;
+use core::{str, sync::atomic};
 
 use embassy_futures::{block_on, join::join};
 use embassy_sync::blocking_mutex::raw::NoopRawMutex;
@@ -23,7 +23,8 @@ macro_rules! setup {
     (RC $r:expr, $c:expr, $t:ident, $press:ident, $assert_read:ident, $a:expr, $x:block) => {
         {
             let mapper_channel = MapperChannel::default();
-            let mut $t = Mapper::<$r, $c, 200, NoopRawMutex, 10>::new(&mapper_channel);
+            let debounce_ms_atomic = atomic::AtomicU8::new(8);
+            let mut $t = Mapper::<$r, $c, 200, NoopRawMutex, 10>::new(&mapper_channel, &debounce_ms_atomic);
 
             let layout = rpk_config::text_to_binary($a).unwrap();
             $t.load_layout(layout).unwrap();
@@ -633,6 +634,7 @@ fn globals() {
 
 dual_action_timeout = 500
 dual_action_timeout2 = 50
+debounce_settle_time = 12.3
 
 [matrix:2x3]
 
@@ -642,6 +644,11 @@ dual_action_timeout2 = 50
         {
             assert_eq!(t.layout.global(globals::DUAL_ACTION_TIMEOUT as usize), 500);
             assert_eq!(t.layout.global(globals::DUAL_ACTION_TIMEOUT2 as usize), 50);
+            assert_eq!(t.layout.global(globals::DEBOUNCE_SETTLE_TIME as usize), 123);
+
+            let debounce = t.debounce_ms_atomic.load(atomic::Ordering::Relaxed);
+
+            assert_eq!(debounce, 123);
         }
     );
 }

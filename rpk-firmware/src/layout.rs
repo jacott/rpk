@@ -31,11 +31,17 @@ pub enum LoadError {
 }
 
 pub(crate) struct Globals {
-    pub(crate) values: [u16; 2],
+    pub(crate) values: [u16; 3],
 }
 impl Default for Globals {
     fn default() -> Self {
-        Self { values: [180, 20] }
+        Self {
+            values: [
+                globals::DUAL_ACTION_TIMEOUT_DEFAULT,
+                globals::DUAL_ACTION_TIMEOUT2_DEFAULT,
+                globals::DEBOUNCE_SETTLE_TIME_DEFAULT,
+            ],
+        }
     }
 }
 
@@ -119,7 +125,7 @@ impl<const ROWS: usize, const COLS: usize, const LAYOUT_MAX: usize>
             }
             let i = iter.next().ok_or(LoadError::Corrupt)?;
             match i {
-                globals::MOUSE_PROFILE1 | globals::MOUSE_PROFILE2 | globals::MOUSE_PROFILE3 => {
+                globals::MOUSE_PROFILE1..=globals::MOUSE_PROFILE3 => {
                     let mp = self
                         .mouse_profiles
                         .get_mut((i - globals::MOUSE_PROFILE1) as usize)
@@ -130,7 +136,7 @@ impl<const ROWS: usize, const COLS: usize, const LAYOUT_MAX: usize>
                         MouseAnalogSetting::deserialize(&mut iter).ok_or(LoadError::Corrupt)?;
                     globals_count -= 21;
                 }
-                globals::DUAL_ACTION_TIMEOUT | globals::DUAL_ACTION_TIMEOUT2 => {
+                globals::DUAL_ACTION_TIMEOUT..=globals::DEBOUNCE_SETTLE_TIME => {
                     globals_count -= 2;
                     let v = iter.next().ok_or(LoadError::Corrupt)?;
                     *self

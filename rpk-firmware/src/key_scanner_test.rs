@@ -86,14 +86,19 @@ impl Wait for Pin {
 }
 
 macro_rules! setup {
-    ($scan:ident, $p1:ident, $channel:ident, $scanner:ident $tune:literal $b:block) => {
+    ($scan:ident, $p1:ident, $channel:ident, $scanner:ident $debounce_ms:literal $b:block) => {
         block_on(async move {
             let mut $p1 = Pin::new(1);
             let p2 = Pin::new(2);
             $p1.set_high().ok();
 
             let $channel = KeyScannerChannel::<NoopRawMutex, 16>::default();
-            let mut $scanner = KeyScanner::new([$p1.clone()], [p2.clone()], &$channel);
+            let debounce_ms_atomic = atomic::AtomicU8::new($debounce_ms);
+            let mut $scanner =
+                KeyScanner::new([$p1.clone()], [p2.clone()], &$channel, &debounce_ms_atomic);
+            $scanner.pin_wait = Duration::from_micros(50);
+            $scanner.calc_debounce_cycle();
+
             assert_eq!($p1.0.n, 1);
 
             macro_rules! $scan {
@@ -111,7 +116,7 @@ macro_rules! setup {
                 };
                 ($c:expr) => {{
                     for _ in 0..$c {
-                        $scanner.scan::<true, $tune>().await;
+                        $scanner.scan::<true>().await;
                     }
                     $scanner.state[0][0]
                 }};
@@ -124,8 +129,14 @@ macro_rules! setup {
 
 #[test]
 fn debounce_low_sensitivity() {
-    setup!(scan, p1, channel, scanner 9 {
+    setup!(scan, p1, channel, scanner 250 {
         scan!(1, 0);
+
+        assert_eq!(scanner.debounce_divisor, 2);
+        assert_eq!(scanner.debounce_modulus, 252);
+        assert_eq!(scanner.cycle, 0);
+
+
         p1.set_low().ok();
         scan!(1, 251);
 
@@ -134,53 +145,61 @@ fn debounce_low_sensitivity() {
         scan!(10, 251);
 
         p1.set_high().ok();
-        scan!(200, 250);
+        scan!(200, 6);
 
         p1.set_low().ok();
-        scan!(3, 175);
+        scan!(3, 107);
 
         p1.set_high().ok();
-        scan!(2, 174);
-
-        p1.set_low().ok();
-        scan!(1, 175);
+        scan!(490, 106);
 
         assert!(channel.0.try_receive().is_err());
+
+        scan!(1, 2);
+
+        assert!(!channel.0.try_receive().unwrap().is_down());
     });
 }
 
 #[test]
 fn debounce() {
-    setup!(scan, p1, channel, scanner 3 {
+    setup!(scan, p1, channel, scanner 10 {
         p1.set_low().ok();
 
-        scan!(1, 0b1000_0011);
+        assert_eq!(scanner.debounce_divisor, 1);
+        assert_eq!(scanner.debounce_modulus, 24);
+        assert_eq!(scanner.cycle, 0);
+
+        scan!(1, 0b1_0111);
         assert!(channel.0.try_receive().unwrap().is_down());
-        scan!(1, 0b1000_0011);
+        scan!(1, 0b1_0111);
 
         p1.set_high().ok();
 
-        scan!(2, 0b1010_0010);
+        scan!(2, 0b1_0110);
 
         p1.set_low().ok();
 
-        scan!(1, 0b1100_0011);
+        scan!(20, 0b0_0111);
 
 
-        scan!(128, 3);
+        scan!(1, 3);
         assert!(channel.0.try_receive().is_err());
 
-        assert_eq!(scanner.debounce, 266);
+        assert_eq!(scanner.cycle, 25);
+
+        scan!(8, 3);
 
         p1.set_high().ok();
 
-        scan!(1, 208);
+        scan!(1, 0b1000);
         assert!(!channel.0.try_receive().unwrap().is_down());
-        scan!(3, 208);
-        scan!(10, 0);
+        scan!(18, 0b1000);
+        scan!(1, 0);
 
         p1.set_low().ok();
-        scan!(15, 0b11);
+        scan!(16, 0b10111);
+        scan!(1, 0b11);
 
         assert!(channel.0.try_receive().unwrap().is_down());
     });

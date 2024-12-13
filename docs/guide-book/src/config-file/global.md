@@ -3,12 +3,17 @@
 Keyboard wide values are defined in this section and can contain any of the following options:
 
 #### `dual_action_timeout = <milliseconds>`
-How long to wait for a tap to occur on an overloaded
-key. `overload_tap_timeout` is an aliases for this option.
+How long to wait for a tap to occur on an overloaded key. `overload_tap_timeout` is an aliases for
+this option. The default is 180ms.
 
-#### `dual_action_timeout2 = <milliseconds>>`
+#### `dual_action_timeout2 = <milliseconds>`
 How long to wait after another two keys are pressed (or released) before giving up on waiting for a
-tap.
+tap. The default is 20ms.
+
+#### `debounce_settle_time = <milliseconds>`
+How long to wait for a key press or release to settle before reporting a change in state. The timer
+starts from the last bounce detected; so a noisy key will take longer to settle than a stable
+key. The default is 20ms.
 
 #### `unicode_prefix = <action>`
 The action to run before sending a unicode sequence.

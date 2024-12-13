@@ -14,12 +14,12 @@ embassy-usb = { version = "0.3", features = [
   "max-interface-count-8",
   "max-handler-count-2",
 ] }
-
+panic-probe = { version = "0.3", features = ["print-defmt"] }
 
 [dependencies.rpk-builder]
 version = "0.1"
 path = "../../../rpk-builder"
-features = ["rp", "reset-on-panic"]
+features = ["rp"]
 
 [build-dependencies.rpk-config]
 version = "0.1"

@@ -317,9 +317,12 @@ impl<'source> Parser<'source> {
                 let value = GlobalProp {
                     index: p.index,
                     spec: match p.spec {
-                        Timeout(_) => {
-                            GlobalType::Timeout(self.config.parse_duration(value_range, 5000)?)
-                        }
+                        Timeout { min, max, dp, .. } => GlobalType::Timeout {
+                            value: self.config.parse_duration(value_range, min, max, dp)?,
+                            min,
+                            max,
+                            dp,
+                        },
                         _ => unreachable!(),
                     },
                 };
@@ -505,7 +508,7 @@ impl<'source> Parser<'source> {
 
     fn read_timeout(&mut self) -> Result<u16> {
         let nr = self.read_arg();
-        self.config.parse_duration(&nr, 5000)
+        self.config.parse_duration(&nr, 0, 5000, 0)
     }
 
     fn read(&mut self, f: impl Fn(char) -> bool) -> SourceRange {
@@ -645,7 +648,7 @@ impl<'source> Parser<'source> {
             "delay" => {
                 self.iter.next();
                 let nr = self.read_arg();
-                let d = self.config.parse_duration(&nr, 5000)?;
+                let d = self.config.parse_duration(&nr, 0, 5000, 0)?;
                 self.expect(')')?;
                 let mac = Macro::Delay(d);
                 self.add_macro(mac)
@@ -1035,6 +1038,7 @@ impl<'source> KeyboardConfig<'source> {
         out
     }
 
+    #[cfg(test)]
     pub fn deserialize_globals(&mut self, data: &mut impl Iterator<Item = u16>) {
         while let Some(gp) = GlobalProp::deserialize(data) {
             if let Some(name) = gp.default_name() {
@@ -1091,16 +1095,41 @@ impl<'source> KeyboardConfig<'source> {
         seq
     }
 
-    fn parse_duration(&mut self, value_range: &SourceRange, max: u16) -> Result<u16> {
-        if let Ok(n) = self.text(value_range).parse::<u16>() {
-            if n <= max {
-                return Ok(n);
+    fn parse_duration(
+        &mut self,
+        value_range: &SourceRange,
+        min: u16,
+        max: u16,
+        dp: i32,
+    ) -> Result<u16> {
+        if dp == 0 {
+            if let Ok(n) = self.text(value_range).parse::<u16>() {
+                if n.clamp(min, max) == n {
+                    return Ok(n);
+                }
             }
+            Err(error_span(
+                format!("Invalid duration; only {min} to {max} milliseconds are valid"),
+                value_range.start..value_range.end,
+            ))
+        } else {
+            let f = 10.0f32.powi(dp);
+            let min = min as f32 / f;
+            let max = max as f32 / f;
+            if let Ok(n) = self.text(value_range).parse::<f32>() {
+                if n >= min && n <= max {
+                    return Ok((n * f) as u16);
+                }
+            }
+            let dp = dp as usize;
+            Err(error_span(
+                format!(
+                    "Invalid duration; only {min:.*} to {max:.*} milliseconds are valid",
+                    dp, dp
+                ),
+                value_range.start..value_range.end,
+            ))
         }
-        Err(error_span(
-            format!("Invalid duration; only 0 to {} milliseconds are valid", max),
-            value_range.start..value_range.end,
-        ))
     }
 
     pub fn key_position(&self, name: &str) -> Option<u16> {

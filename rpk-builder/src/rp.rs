@@ -1,4 +1,5 @@
 use crate::{config, key_scanner, mapper, ring_fs, NoopRawMutex};
+pub use core::sync::atomic::AtomicU8;
 pub use embassy_rp::{bind_interrupts, flash, gpio, init, peripherals, rom_data, usb};
 
 pub async fn run_mapper<
@@ -12,16 +13,18 @@ pub async fn run_mapper<
     key_scan_channel: &'static key_scanner::KeyScannerChannel<NoopRawMutex, SCANNER_BUFFER_SIZE>,
     mapper_channel: &'static mapper::MapperChannel<NoopRawMutex, REPORT_BUFFER_SIZE>,
     fs: &'static dyn ring_fs::RingFs<'static>,
+    debounce_ms_atomic: &'static AtomicU8,
 ) {
     let mut mapper =
         mapper::Mapper::<'static, ROW_COUNT, COL_COUNT, LAYOUT_MAX, _, REPORT_BUFFER_SIZE>::new(
             mapper_channel,
+            debounce_ms_atomic,
         );
     {
         if !match fs.file_reader_by_index(0) {
             Ok(fr) => {
                 if let Err(err) = mapper.load_layout(config::ConfigFileIter::new(fr).skip(2)) {
-                    crate::info!("error loading layout {:?}", err);
+                    crate::info!("error FIXME loading layout {:?}", err);
                     false
                 } else {
                     true
@@ -32,7 +35,9 @@ pub async fn run_mapper<
                 false
             }
         } {
-            mapper.load_layout(layout_mapping.iter().copied()).unwrap();
+            if let Err(err) = mapper.load_layout(layout_mapping.iter().copied()) {
+                crate::info!("unexpected error loading layout {:?}", err);
+            }
         }
     }
 
@@ -73,6 +78,7 @@ macro_rules! rp_run_keyboard {
         use rpk_builder::{mapper, key_scanner, ring_fs::RingFs,
             UsbState, UsbConfigurator, UsbBuffers, config, usb};
         use rpk_builder::NoopRawMutex;
+        use core::sync::atomic::AtomicU8;
 
         type ScanChannel = key_scanner::KeyScannerChannel<NoopRawMutex, SCANNER_BUFFER_SIZE>;
         type MapperChannel = mapper::MapperChannel<NoopRawMutex, REPORT_BUFFER_SIZE>;
@@ -88,6 +94,8 @@ macro_rules! rp_run_keyboard {
         static USB_CONFIG: StaticCell<UsbConfigurator> = StaticCell::new();
         static SHARED_HID_STATE: StaticCell<UsbState> = StaticCell::new();
         static CONFIG_INTERFACE: StaticCell<ConfigInterface> = StaticCell::new();
+
+        static DEBOUNCE_TUNE: AtomicU8 = AtomicU8::new(8);
 
         bind_interrupts!(struct Irqs {
             USBCTRL_IRQ => InterruptHandler<USB>;
@@ -105,8 +113,6 @@ macro_rules! rp_run_keyboard {
             }
         }
 
-        const DEBOUNCE_TUNE: usize = 8;
-
         #[embassy_executor::task]
         async fn scanner(
             input_pins: [Input<'static>; INPUT_N],
@@ -117,8 +123,9 @@ macro_rules! rp_run_keyboard {
                 input_pins,
                 output_pins,
                 key_scan_channel,
+                &DEBOUNCE_TUNE,
             );
-            scanner.run::<ROW_IS_OUTPUT, DEBOUNCE_TUNE>().await;
+            scanner.run::<ROW_IS_OUTPUT>().await;
         }
 
         #[embassy_executor::task]
@@ -131,7 +138,7 @@ macro_rules! rp_run_keyboard {
             rp::run_mapper::<
             ROW_COUNT, COL_COUNT, LAYOUT_MAX,
             SCANNER_BUFFER_SIZE, REPORT_BUFFER_SIZE,
-            >(layout_mapping, key_scan_channel, mapper_channel, fs).await;
+            >(layout_mapping, key_scan_channel, mapper_channel, fs, &DEBOUNCE_TUNE).await;
         }
 
         #[embassy_executor::task]
