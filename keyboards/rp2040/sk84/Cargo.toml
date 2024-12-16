@@ -1,6 +1,6 @@
 [package]
 name = "sk84"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 publish = false
 
@@ -14,16 +14,10 @@ embassy-usb = { version = "0.3", features = [
   "max-interface-count-8",
   "max-handler-count-2",
 ] }
-
-
-[dependencies.rpk-builder]
-version = "0.1"
-path = "../../../rpk-builder"
-features = ["rp", "reset-on-panic"]
+rpk-builder = { version = "0.2", features = ["rp", "reset-on-panic"]}
 
 [build-dependencies.rpk-config]
-version = "0.1"
-path = "../../../rpk-config"
+version = "0.2"
 
 [[bin]]
 name = "sk84"
@@ -44,3 +38,7 @@ lto = true
 
 [features]
 defmt = ["rpk-builder/defmt"]
+
+[patch.crates-io]
+rpk-builder = { path = "../../../rpk-builder" }
+rpk-config = { path = "../../../rpk-config" }

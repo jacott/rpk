@@ -1,17 +1,3 @@
-#[macro_export]
-macro_rules! config_matrix_pins_rp {
-    (peripherals: $p:ident, input: [$($in_pin:ident), *], output: [$($out_pin:ident), +]) => {
-        {
-            let mut output_pins = [$(Output::new(AnyPin::from($p.$out_pin), embassy_rp::gpio::Level::High)), +];
-            let input_pins = [$(Input::new(AnyPin::from($p.$in_pin), embassy_rp::gpio::Pull::Up)), +];
-            output_pins.iter_mut().for_each(|p| {
-                p.set_high();
-            });
-            (input_pins, output_pins)
-        }
-    };
-}
-
 #[allow(unused)]
 #[cfg(all(not(test), not(feature = "defmt")))]
 mod no_defmt {

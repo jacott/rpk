@@ -15,14 +15,10 @@ bench = false
 doctest = false
 
 [dependencies]
-proc-macro2 = "1"
+proc-macro2 = {workspace = true}
 quote = "1"
-regex = "1"
-syn = {version = "2", features = ["visit-mut"]}
-
-[dependencies.rpk-config]
-version = "0.1"
-path = "../rpk-config"
+syn = { workspace = true }
+rpk-config =  { workspace = true }
 
 [dev-dependencies.syn]
 version = "2"

@@ -1393,7 +1393,7 @@ dependencies = [
 
 [[package]]
 name = "rpk-builder"
-version = "0.1.1"
+version = "0.2.0"
 dependencies = [
  "defmt",
  "defmt-rtt",
@@ -1409,11 +1409,11 @@ dependencies = [
 
 [[package]]
 name = "rpk-common"
-version = "0.1.1"
+version = "0.2.0"
 
 [[package]]
 name = "rpk-config"
-version = "0.1.1"
+version = "0.2.0"
 dependencies = [
  "anyhow",
  "ariadne",
@@ -1422,19 +1422,16 @@ dependencies = [
  "futures-lite",
  "lazy_static",
  "nusb",
- "proc-macro2",
- "regex",
  "rpk-common",
  "tempfile",
 ]
 
 [[package]]
 name = "rpk-firmware"
-version = "0.1.1"
+version = "0.2.0"
 dependencies = [
  "critical-section",
  "defmt",
- "embassy-executor",
  "embassy-futures",
  "embassy-sync",
  "embassy-time",
@@ -1447,16 +1444,14 @@ dependencies = [
  "heapless",
  "rpk-common",
  "rpk-config",
- "static_cell",
 ]
 
 [[package]]
 name = "rpk-macros"
-version = "0.1.1"
+version = "0.2.0"
 dependencies = [
  "proc-macro2",
  "quote",
- "regex",
  "rpk-config",
  "syn 2.0.90",
 ]

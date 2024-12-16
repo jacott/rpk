@@ -15,23 +15,21 @@ bench = false
 doctest = false
 
 [dependencies]
-defmt = {version = "0.3", optional = true}
-embassy-time = { version = "0.3" }
-embassy-usb = { version = "0.3" }
-embassy-futures = "0.1"
+defmt = { workspace = true, optional = true}
+embassy-time = { workspace = true }
+embassy-usb = { workspace = true }
+embassy-futures = { workspace = true }
 heapless = "0.8"
-embassy-sync = "0.6"
+embassy-sync = { workspace = true }
 embedded-hal = "1"
 embedded-hal-async = "1"
 embedded-storage = "0.3"
-static_cell = "2"
-embassy-executor = "0.6"
-rpk-common = {version = "0.1", path = "../rpk-common"}
+rpk-common = { workspace = true }
 
 [dev-dependencies]
-embassy-time-driver = "0.1"
-embassy-time-queue-driver = "0.1"
-rpk-config = {version = "0.1", path = "../rpk-config"}
+embassy-time-driver = { workspace = true }
+embassy-time-queue-driver = { workspace = true }
+rpk-config = { workspace = true }
 critical-section = { version = "1", features = ["std"]}
 
 [features]

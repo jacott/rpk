@@ -3,7 +3,7 @@ members = ["rpk-common", "rpk-builder", "rpk-firmware", "rpk-config", "rpk-macro
 resolver = "2"
 
 [workspace.package]
-version = "0.1.1"
+version = "0.2.0"
 description = "Keyboard firmware builder and configuration tool"
 repository = "https://github.com/jacott/rpk"
 edition = "2021"
@@ -12,6 +12,26 @@ license = "MIT"
 keywords = ["embedded", "keyboard-firmware", "usb-hid"]
 categories = ["embedded"]
 readme = "README.md"
+
+[workspace.dependencies]
+rpk-common = { version = "0.2", path = "rpk-common" }
+rpk-firmware = { version = "0.2", path = "rpk-firmware" }
+rpk-config = { version = "0.2", path = "rpk-config" }
+rpk-macros = { version = "0.2", path = "rpk-macros" }
+
+embassy-sync = "0.6"
+embassy-executor = "0.6"
+embassy-usb = "0.3"
+embassy-time = "0.3"
+embassy-time-driver = "0.1"
+embassy-time-queue-driver = "0.1"
+embassy-futures = "0.1"
+
+defmt = "0.3"
+syn = {version = "2", features = ["visit-mut", "visit"]}
+proc-macro2 = {version = "1.0.92", features = []}
+
+
 
 [profile.release]
 debug = 0

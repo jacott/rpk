@@ -13,26 +13,20 @@ bench = false
 doctest = false
 
 [dependencies]
-defmt = {version = "0.3", optional = true}
+defmt = { workspace = true, optional = true}
 defmt-rtt = {version = "0.4", optional = true}
 portable-atomic = { version = "1", features = ["critical-section"], optional = true }
-embassy-executor = { version = "0.6", features = ["executor-thread", "executor-interrupt", "integrated-timers"]}
-embassy-sync = "0.6"
 static_cell = "2"
-embassy-usb = { version = "0.3" }
+embassy-executor = { workspace = true, features = ["executor-thread", "executor-interrupt", "integrated-timers"]}
+embassy-sync = { workspace = true }
+embassy-usb = { workspace = true }
+rpk-firmware = { workspace = true }
+rpk-macros = { workspace = true }
 
 [dependencies.embassy-rp]
 version = "0.2"
 features = ["unstable-pac", "time-driver", "critical-section-impl"]
 optional = true
-
-[dependencies.rpk-firmware]
-version = "0.1"
-path = "../rpk-firmware"
-
-[dependencies.rpk-macros]
-version = "0.1"
-path = "../rpk-macros"
 
 [features]
 defmt  = ["dep:defmt", "dep:defmt-rtt", "rpk-firmware/defmt"]

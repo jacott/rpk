@@ -1,6 +1,6 @@
 [package]
 name = "macropad-3x3"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 publish = false
 
@@ -14,16 +14,11 @@ embassy-usb = { version = "0.3", features = [
   "max-interface-count-8",
   "max-handler-count-2",
 ] }
+rpk-builder = { version = "0.2", features = ["rp"]}
 panic-probe = { version = "0.3", features = ["print-defmt"] }
 
-[dependencies.rpk-builder]
-version = "0.1"
-path = "../../../rpk-builder"
-features = ["rp"]
-
 [build-dependencies.rpk-config]
-version = "0.1"
-path = "../../../rpk-config"
+version = "0.2"
 
 [[bin]]
 name = "macropad-3x3"
@@ -45,3 +40,7 @@ lto = true
 [features]
 default = ["defmt"]
 defmt = ["rpk-builder/defmt"]
+
+[patch.crates-io]
+rpk-builder = { path = "../../../rpk-builder" }
+rpk-config = { path = "../../../rpk-config" }

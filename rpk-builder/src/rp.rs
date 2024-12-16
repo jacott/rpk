@@ -59,6 +59,21 @@ pub async fn run_mapper<
     }
 }
 
+/// Configure and run a keyboard using the config file [`default-layout.rpk.conf`][c].
+///
+/// This macro adds a `main` function that builds all the tasks of the keyboard and runs them. The
+/// [`[firmware]`][f] section in the config file defines the keyboard.
+///
+/// # Example `main.rs`
+///
+/// ```rust
+/// #![no_std]
+/// #![no_main]
+///
+/// rpk_builder::rp_run_keyboard! {}
+/// ```
+/// [c]: https://jacott.github.io/rpk/guide/new-keyboard.html#project-structure
+/// [f]: https://jacott.github.io/rpk/config-file/firmware.html
 #[macro_export]
 macro_rules! rp_run_keyboard {
     () => {
