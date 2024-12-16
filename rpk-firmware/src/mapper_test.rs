@@ -1182,6 +1182,73 @@ g = C-S-m
 }
 
 #[test]
+fn modifier_layer() {
+    setup!(
+        t,
+        press,
+        assert_read,
+        r#"
+[matrix:2x3]
+
+0x00 = a b c
+0x10 = e f g
+
+[shift]
+
+c = S-G-j
+g = S-m
+
+[ctlshft:C-S]
+
+c = C-G-a
+
+"#,
+        {
+            t.push_layer(1);
+            assert_read!(KEY_DOWN, "leftshift");
+
+            // S-m
+            press!(1, 2, true);
+            assert_read!(KEY_DOWN, "m");
+            assert_read!(NONE);
+
+            press!(1, 2, false);
+            assert_read!(KEY_UP, "m");
+            assert_read!(NONE);
+
+            // S-G-j
+            press!(0, 2, true);
+            assert_read!(E KeyEvent::PendingModifiers(8, true));
+            assert_read!(KEY_DOWN, "j");
+            assert_read!(NONE);
+
+            press!(0, 2, false);
+            assert_read!(KEY_UP, "j");
+            assert_read!(KEY_UP, "leftgui");
+
+            t.pop_layer(1);
+            assert_read!(KEY_UP, "leftshift");
+
+            t.push_layer(6);
+            assert_read!(E KeyEvent::Modifiers(3, true));
+            assert_read!(NONE);
+
+            // C-G-a
+            press!(0, 2, true);
+            assert_read!(E KeyEvent::PendingModifiers(2, false));
+            assert_read!(E KeyEvent::PendingModifiers(8, true));
+            assert_read!(KEY_DOWN, "a");
+            assert_read!(NONE);
+
+            press!(0, 2, false);
+            assert_read!(KEY_UP, "a");
+            assert_read!(E KeyEvent::PendingModifiers(8, false));
+            assert_read!(KEY_DOWN, "leftshift");
+        }
+    );
+}
+
+#[test]
 fn unicode() {
     setup!(
         t,

@@ -277,6 +277,7 @@ pub struct Mapper<
     memo_count: usize,
     now: u64,
     debounce_ms_atomic: &'c atomic::AtomicU8,
+    layer_modifiers: u8,
 }
 impl<
         'c,
@@ -307,6 +308,7 @@ impl<
             memo_count: 0,
             now: 1,
             debounce_ms_atomic,
+            layer_modifiers: 0,
         }
     }
 
@@ -324,7 +326,7 @@ impl<
         self.layout.clear_all();
         self.dual_action = DualActionTimer::NoDual;
         self.report_channel.clear_reports();
-        self.report_channel.report(KeyEvent::Clear);
+        self.report(KeyEvent::Clear);
     }
 
     fn clear_layers(&mut self) {
@@ -332,7 +334,7 @@ impl<
             *m = 0;
         }
         self.layout.clear_layers();
-        self.report_channel.report(KeyEvent::Modifiers(0, false));
+        self.report(KeyEvent::Modifiers(0, false));
     }
 
     fn stop_active(&mut self) {
@@ -340,7 +342,7 @@ impl<
             *m = 0;
         }
         self.layout.clear_modifier_layers();
-        self.report_channel.report(KeyEvent::Clear);
+        self.report(KeyEvent::Clear);
     }
 
     pub async fn run<const SCANNER_BUFFER_SIZE: usize>(
@@ -426,17 +428,14 @@ impl<
                 return;
             };
             self.activate_action(k.row(), k.column(), kc);
-            let modifiers = kc.modifiers();
-            if modifiers != 0 {
-                self.write_up_modifiers(modifiers, true);
-            }
+            self.layer_modifiers = kc.modifiers();
             self.run_action(kc.0, true);
         } else {
             let kc = self.deactivate_action(k.row(), k.column());
-            let modifiers = kc.modifiers();
+            self.layer_modifiers = kc.modifiers();
             self.run_action(kc.0, false);
-            if modifiers != 0 {
-                self.write_down_modifiers(modifiers, false);
+            if self.layer_modifiers != 0 {
+                self.write_down_modifiers(self.layer_modifiers, false);
             }
             match self.oneshot {
                 Oneshot::None => {}
@@ -449,46 +448,38 @@ impl<
         };
     }
 
-    fn run_action(&mut self, mut action: u16, is_down: bool) {
-        let mut modifiers = 0;
+    fn report(&mut self, message: KeyEvent) {
+        if self.layer_modifiers != 0 && self.last_scan_key.0.is_down() {
+            let modifiers = self.layer_modifiers;
+            self.layer_modifiers = 0;
+            self.write_up_modifiers(modifiers, true);
+        }
+        self.report_channel.report(message);
+    }
 
-        while action != 0 {
-            let mut newkey = KeyPlusMod::none();
-            if is_down && modifiers != 0 {
-                self.write_down_modifiers(modifiers, true);
+    fn run_action(&mut self, action: u16, is_down: bool) {
+        match action {
+            key_range::MODIFIER_MIN..=key_range::MODIFIER_MAX => {
+                self.modifier(action, is_down);
             }
-            match action {
-                key_range::MODIFIER_MIN..=key_range::MODIFIER_MAX => {
-                    self.modifier(action, is_down);
-                }
-                key_range::BASIC_MIN..=key_range::BASIC_MAX => {
-                    self.report_channel
-                        .report(KeyEvent::basic(action as u8, is_down));
-                }
-                key_range::MACROS_MIN..=key_range::MACROS_MAX => {
-                    newkey = self.macros(action, is_down);
-                }
-                key_range::CONSUMER_MIN..=key_range::CONSUMER_MAX => {
-                    self.report_channel
-                        .report(KeyEvent::consumer(action, is_down));
-                }
-                key_range::SYS_CTL_MIN..=key_range::SYS_CTL_MAX => {
-                    self.report_channel
-                        .report(KeyEvent::sys_ctl(action, is_down));
-                }
-                key_range::MOUSE_MIN..=key_range::MOUSE_MAX => self.mouse(action, is_down),
-                key_range::LAYER..=key_range::LAYERS_LAST => self.layer(action, is_down),
-                key_range::FIRMWARE_MIN..=key_range::FIRMWARE_MAX => {
-                    self.firmware_action(action, is_down);
-                }
-                _ => {}
-            };
-            if modifiers != 0 && !is_down {
-                self.write_up_modifiers(modifiers, false);
+            key_range::BASIC_MIN..=key_range::BASIC_MAX => {
+                self.report(KeyEvent::basic(action as u8, is_down));
             }
-
-            action = newkey.0;
-            modifiers = newkey.modifiers();
+            key_range::MACROS_MIN..=key_range::MACROS_MAX => {
+                self.macros(action, is_down);
+            }
+            key_range::CONSUMER_MIN..=key_range::CONSUMER_MAX => {
+                self.report(KeyEvent::consumer(action, is_down));
+            }
+            key_range::SYS_CTL_MIN..=key_range::SYS_CTL_MAX => {
+                self.report(KeyEvent::sys_ctl(action, is_down));
+            }
+            key_range::MOUSE_MIN..=key_range::MOUSE_MAX => self.mouse(action, is_down),
+            key_range::LAYER..=key_range::LAYERS_LAST => self.layer(action, is_down),
+            key_range::FIRMWARE_MIN..=key_range::FIRMWARE_MAX => {
+                self.firmware_action(action, is_down);
+            }
+            _ => {}
         }
     }
 
@@ -538,16 +529,37 @@ impl<
         Ok(())
     }
 
-    fn macros(&mut self, code: u16, is_down: bool) -> KeyPlusMod {
+    fn macros(&mut self, code: u16, is_down: bool) {
         let id = code - key_range::MACROS_MIN;
         let mac = self.layout.get_macro(id);
         match &mac {
-            Macro::Modifier(ref key_plus_mod) => *key_plus_mod,
+            Macro::Modifier(ref key_plus_mod) => {
+                let lm = self.layer_modifiers;
+                self.layer_modifiers = 0;
+                let layer_modifiers = lm & !key_plus_mod.1;
+                let key_modifiers = key_plus_mod.1 & !lm;
+                if is_down {
+                    if layer_modifiers != 0 {
+                        self.write_up_modifiers(layer_modifiers, true);
+                    }
+                    if key_modifiers != 0 {
+                        self.write_down_modifiers(key_modifiers, true);
+                    }
+                    self.run_action(key_plus_mod.0, is_down);
+                } else {
+                    self.run_action(key_plus_mod.0, is_down);
+                    if key_modifiers != 0 {
+                        self.write_up_modifiers(key_modifiers, layer_modifiers != 0);
+                    }
+                    if layer_modifiers != 0 {
+                        self.write_down_modifiers(layer_modifiers, false);
+                    }
+                }
+            }
             Macro::DualAction(ref tap, ref hold, ref t1, ref t2) => {
                 self.start_dual_action(is_down, *tap, *hold, *t1, *t2);
-                KeyPlusMod::none()
             }
-            Macro::Noop => KeyPlusMod::none(),
+            Macro::Noop => {}
             Macro::Sequence {
                 mode,
                 location,
@@ -563,16 +575,14 @@ impl<
                         self.next_macro_seq(*location, *rem, *mode);
                     }
                 }
-                KeyPlusMod::none()
             }
             Macro::HoldRelease { hold, release } => {
-                self.macros(if is_down { *hold } else { *release }, is_down)
+                self.macros(if is_down { *hold } else { *release }, is_down);
             }
             Macro::Delay(n) => {
                 if is_down {
-                    self.report_channel.report(KeyEvent::Delay(*n));
+                    self.report(KeyEvent::Delay(*n));
                 }
-                KeyPlusMod::none()
             }
         }
     }
@@ -599,7 +609,7 @@ impl<
                 );
             }
             _ => match self.mouse.action(code, is_down, self.now) {
-                Some(key_event) => self.report_channel.report(key_event),
+                Some(key_event) => self.report(key_event),
                 None => self.set_wait_time(),
             },
         }
@@ -770,13 +780,12 @@ impl<
             if bits == 0 {
                 if changed != 0 {
                     if changed == 1 && !pending {
-                        self.report_channel.report(KeyEvent::basic(
+                        self.report(KeyEvent::basic(
                             key_range::MODIFIER_MIN as u8 + i as u8,
                             false,
                         ));
                     } else {
-                        self.report_channel
-                            .report(KeyEvent::modifiers(modifiers, false, pending));
+                        self.report(KeyEvent::modifiers(modifiers, false, pending));
                     }
                 }
                 return;
@@ -798,13 +807,12 @@ impl<
             if bits == 0 {
                 if changed != 0 {
                     if changed == 1 && !pending {
-                        self.report_channel.report(KeyEvent::basic(
+                        self.report(KeyEvent::basic(
                             key_range::MODIFIER_MIN as u8 + i as u8,
                             true,
                         ));
                     } else {
-                        self.report_channel
-                            .report(KeyEvent::modifiers(modifiers, true, pending));
+                        self.report(KeyEvent::modifiers(modifiers, true, pending));
                     }
                 }
                 return;
