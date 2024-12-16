@@ -119,7 +119,7 @@ enum ChipType {
     Rp2040,
 }
 impl ChipType {
-    fn to_builder(&self) -> init_builder::ChipType {
+    fn to_builder(self) -> init_builder::ChipType {
         match self {
             ChipType::Rp2040 => init_builder::ChipType::Rp2040,
         }
