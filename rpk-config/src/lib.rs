@@ -128,7 +128,7 @@ pub fn pretty_compile<'s>(
 
             let a = colors.next();
             if let Some(span) = err.char_span(src) {
-                Report::build(ReportKind::Error, filename, 12)
+                Report::build(ReportKind::Error, (filename, span.start..span.end))
                     .with_message("Invalid config".to_string())
                     .with_label(
                         Label::new((filename, span))
