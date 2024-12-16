@@ -11,6 +11,7 @@ publish = true
 license = "MIT"
 keywords = ["embedded", "keyboard-firmware", "usb-hid"]
 categories = ["embedded"]
+readme = "README.md"
 
 [profile.release]
 debug = 0

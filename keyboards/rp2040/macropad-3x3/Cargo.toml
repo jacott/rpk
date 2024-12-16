@@ -43,4 +43,5 @@ opt-level = 'z'
 lto = true
 
 [features]
+default = ["defmt"]
 defmt = ["rpk-builder/defmt"]
