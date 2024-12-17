@@ -1441,7 +1441,6 @@ dependencies = [
  "embedded-hal 1.0.0",
  "embedded-hal-async",
  "embedded-storage",
- "heapless",
  "rpk-common",
  "rpk-config",
 ]

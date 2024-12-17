@@ -19,7 +19,6 @@ defmt = { workspace = true, optional = true}
 embassy-time = { workspace = true }
 embassy-usb = { workspace = true }
 embassy-futures = { workspace = true }
-heapless = "0.8"
 embassy-sync = { workspace = true }
 embedded-hal = "1"
 embedded-hal-async = "1"

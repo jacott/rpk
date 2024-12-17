@@ -5,7 +5,6 @@ use embassy_sync::{blocking_mutex::raw::RawMutex, channel::Channel};
 use embassy_time::{Duration, Instant, Timer};
 use embedded_hal::digital::{InputPin, OutputPin};
 use embedded_hal_async::digital::Wait;
-use heapless::Vec;
 
 const IDLE_WAIT_MS: u32 = 2_000;
 
@@ -181,11 +180,11 @@ impl<
         }
         Timer::after_micros(10).await;
         {
-            let mut futs: Vec<_, INPUT_N> = self
+            let mut futs = self
                 .input_pins
                 .iter_mut()
-                .map(|input_pin| input_pin.wait_for_low())
-                .collect();
+                .map(|input_pin| input_pin.wait_for_low());
+            let mut futs: [_; INPUT_N] = core::array::from_fn(|_| futs.next().unwrap());
             let _ = select_slice(futs.as_mut_slice()).await;
         }
 

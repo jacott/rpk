@@ -1,32 +1,52 @@
 extern crate std;
-use embassy_futures::block_on;
-use embassy_sync::blocking_mutex::raw::NoopRawMutex;
+use embassy_futures::{
+    block_on, join,
+    select::{self},
+};
+use embassy_sync::{blocking_mutex::raw::NoopRawMutex, signal::Signal};
 use embedded_hal::digital::{Error, ErrorType};
 use std::rc::Rc;
-use std::sync::Mutex;
 
 use super::*;
 
 #[derive(Debug)]
 struct TestError;
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 struct Pin(Rc<PinShared>);
+impl core::fmt::Debug for Pin {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        let state = self.0.get_state();
 
-#[derive(Debug)]
-struct PinShared {
-    n: u8,
-    state: Mutex<bool>,
+        f.debug_struct("Pin")
+            .field("n", &self.0.n)
+            .field("state", &state)
+            .finish()
+    }
 }
-
 impl Pin {
     fn new(n: u8) -> Self {
         Self(Rc::new(PinShared {
             n,
-            state: Mutex::new(false),
+            signal: Signal::new(),
         }))
     }
 }
+
+struct PinShared {
+    n: u8,
+    signal: Signal<NoopRawMutex, bool>,
+}
+impl PinShared {
+    fn get_state(&self) -> Option<bool> {
+        let state = self.signal.try_take();
+        if let Some(is_high) = state {
+            self.signal.signal(is_high);
+        }
+        state
+    }
+}
+
 impl Error for TestError {
     fn kind(&self) -> embedded_hal::digital::ErrorKind {
         embedded_hal::digital::ErrorKind::Other
@@ -39,49 +59,54 @@ impl ErrorType for Pin {
 
 impl InputPin for Pin {
     fn is_high(&mut self) -> Result<bool, Self::Error> {
-        let guard = self.0.state.lock().unwrap();
-        Ok(*guard)
+        Ok(matches!(self.0.get_state(), Some(true)))
     }
 
     fn is_low(&mut self) -> Result<bool, Self::Error> {
-        let guard = self.0.state.lock().unwrap();
-        Ok(!*guard)
+        Ok(matches!(self.0.get_state(), Some(false)))
     }
 }
 
 impl OutputPin for Pin {
     fn set_low(&mut self) -> Result<(), Self::Error> {
-        let mut guard = self.0.state.lock().unwrap();
-        *guard = false;
+        self.0.signal.signal(false);
         Ok(())
     }
 
     fn set_high(&mut self) -> Result<(), Self::Error> {
-        let mut guard = self.0.state.lock().unwrap();
-        *guard = true;
+        self.0.signal.signal(true);
         Ok(())
     }
 }
 
 impl Wait for Pin {
     async fn wait_for_high(&mut self) -> Result<(), Self::Error> {
-        std::unimplemented!()
+        while !self.0.signal.wait().await {}
+        Ok(())
     }
 
     async fn wait_for_low(&mut self) -> Result<(), Self::Error> {
-        std::unimplemented!()
+        while self.0.signal.wait().await {}
+        Ok(())
     }
 
     async fn wait_for_rising_edge(&mut self) -> Result<(), Self::Error> {
-        std::unimplemented!()
+        self.wait_for_low().await?;
+        self.wait_for_high().await
     }
 
     async fn wait_for_falling_edge(&mut self) -> Result<(), Self::Error> {
-        std::unimplemented!()
+        self.wait_for_high().await?;
+        self.wait_for_low().await
     }
 
     async fn wait_for_any_edge(&mut self) -> Result<(), Self::Error> {
-        std::unimplemented!()
+        if self.0.signal.wait().await {
+            self.wait_for_low().await?;
+        } else {
+            self.wait_for_high().await?;
+        }
+        Ok(())
     }
 }
 
@@ -202,5 +227,38 @@ fn debounce() {
         scan!(1, 0b11);
 
         assert!(channel.0.try_receive().unwrap().is_down());
+    });
+}
+
+#[test]
+fn wait_for_key() {
+    setup!(_pscan, p1, channel, scanner 10 {
+        scanner.cycle = 3;
+        scanner.clock = Instant::now() - Duration::from_millis(1);
+        p1.set_high().ok();
+        let ordering = Channel::<NoopRawMutex, &'static str, 10>::new();
+        let o1 = &ordering;
+        let o2 = &ordering;
+        let wf = async move {
+            o1.try_send("wf0").unwrap();
+            scanner.wait_for_key().await;
+            o1.try_send("wf1").unwrap();
+            scanner
+        };
+        let sf = async move {
+            o2.receive().await;
+            Timer::after_micros(10).await;
+            p1.set_low().ok();
+            o2.receive().await;
+            true
+        };
+        let ans = select::select(join::join(wf,sf), Timer::after_millis(10)).await;
+        let select::Either::First((scanner, true)) = ans else {
+            panic!("Expected scanner");
+        };
+        assert_eq!(scanner.all_up_limit, 6666);
+        assert_eq!(scanner.pin_wait, Duration::from_ticks(300));
+        assert_eq!(scanner.debounce_divisor, 1);
+        assert_eq!(scanner.debounce_modulus, 8);
     });
 }
