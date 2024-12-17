@@ -105,5 +105,29 @@ The following are all valid macro expressions:
 Splitting into smaller tokens serves as an escaping mechainism: `macro(space)` inserts a space,
 `macro(sp ace)` writes "space".
 
+### Modifier macros
+
+Modifier macros report the given modifiers before reporting the `keycode`. The modifiers are
+reported only when necessary. This makes them useful for keeping [layer modifiers][2] in place when
+defining keys on that layer.[^note1]
+
+#### Example
+
+```ini
+[nav:C]
+
+j = left
+u = C-left
+```
+
+Here when the `nav` layer is active holding `j` will result in a `leftcontrol` up then `left` down;
+whereas holding `u` will result in just a `left` down.
+
+---
+
+[^note1]: Sometimes, when multiple modifiers are pressed, a modifier is released before the
+    modifier-macro is pressed. This would result in the modifier-macro not sending the down
+    event. To help prevent this modifier-macros double set the modifiers.
+
 [1]: https://en.wikipedia.org/wiki/USB_human_interface_device_class
 [2]: layers.md#modifiers

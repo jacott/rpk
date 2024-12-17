@@ -48,6 +48,10 @@ macro_rules! setup {
                         }
                     }
                 }};
+                (TAP $e:expr) => {{
+                    $assert_read!(KEY_DOWN, $e);
+                    $assert_read!(KEY_UP, $e);
+                }};
                 (E $e:expr) => {{
                     if let Ok(ans) = mapper_channel.0.try_receive() {
                         assert_eq!(ans, $e);
@@ -1067,8 +1071,7 @@ g = C-S-m
                 assert_read!(KEY_DOWN, "c");
                 assert!(t.run_memo());
                 assert_read!(KEY_UP, "c");
-                assert_read!(KEY_UP, "leftcontrol");
-
+                assert_read!(E KeyEvent::Modifiers(1, false));
                 advance!(180);
 
                 assert_read!(NONE);
@@ -1089,7 +1092,7 @@ g = C-S-m
                 assert_read!(NONE);
                 assert!(t.run_memo());
                 assert_read!(KEY_UP, "c");
-                assert_read!(KEY_UP, "leftcontrol");
+                assert_read!(E KeyEvent::Modifiers(1, false));
 
                 press!(1, 0, false);
                 assert_read!(KEY_UP, "e");
@@ -1224,7 +1227,7 @@ c = C-G-a
 
             press!(0, 2, false);
             assert_read!(KEY_UP, "j");
-            assert_read!(KEY_UP, "leftgui");
+            assert_read!(E KeyEvent::Modifiers(8, false));
 
             t.pop_layer(1);
             assert_read!(KEY_UP, "leftshift");
@@ -1243,7 +1246,167 @@ c = C-G-a
             press!(0, 2, false);
             assert_read!(KEY_UP, "a");
             assert_read!(E KeyEvent::PendingModifiers(8, false));
+            assert_read!(E KeyEvent::Modifiers(2, true));
+        }
+    );
+}
+
+#[test]
+fn shift_shift_bug() {
+    setup!(
+        t,
+        press,
+        assert_read,
+        r#"
+[matrix:2x3]
+0x00 = a    b c
+0x10 = lsft f rsft
+
+[aliases]
+leftshift = shift
+rightshift = shift
+
+[shift]
+shift = layer(nav)
+
+[nav]
+f = 2
+b = C-S-3
+"#,
+        {
+            // test ld, rd, lu, bd, bug!!!!, bu,
+
+            // if the active layer has a modifier and a key matches it then the layer is locked
+            // until the up is received.
+            press!(1, 0, true);
             assert_read!(KEY_DOWN, "leftshift");
+            press!(1, 2, true);
+            assert_read!(E KeyEvent::Modifiers(2, false));
+            press!(1, 0, false);
+
+            press!(0, 1, true);
+            assert_read!(E KeyEvent::PendingModifiers(3, true));
+            assert_read!(KEY_DOWN, "3");
+            assert_read!(NONE);
+
+            press!(0, 1, false);
+            assert_read!(KEY_UP, "3");
+            assert_read!(E KeyEvent::Modifiers(3, false));
+            assert_read!(NONE);
+
+            press!(1, 2, false);
+            assert_read!(NONE);
+
+            // ldown, rdown, rup, lup
+            press!(1, 0, true);
+            assert_read!(KEY_DOWN, "leftshift");
+
+            press!(1, 2, true);
+            assert_read!(E KeyEvent::Modifiers(2, false));
+
+            press!(1, 2, false);
+            assert_read!(E KeyEvent::Modifiers(2, true));
+
+            press!(1, 0, false);
+            assert_read!(KEY_UP, "leftshift");
+            assert_read!(NONE);
+
+            // ldown, rdown, ftap, lup, rup, ftap
+            press!(1, 0, true);
+            assert_read!(KEY_DOWN, "leftshift");
+
+            press!(1, 2, true);
+            assert_read!(E KeyEvent::Modifiers(2, false));
+            press!(1, 1, true);
+            press!(1, 1, false);
+
+            assert_read!(KEY_DOWN, "2");
+            assert_read!(KEY_UP, "2");
+
+            press!(1, 0, false);
+            assert_read!(NONE);
+
+            press!(1, 2, false);
+            press!(1, 1, true);
+            press!(1, 1, false);
+
+            assert_read!(KEY_DOWN, "f");
+            assert_read!(KEY_UP, "f");
+
+            // ldown, rdown, rup, lup
+            press!(1, 0, true);
+            assert_read!(KEY_DOWN, "leftshift");
+
+            press!(1, 2, true);
+            assert_read!(E KeyEvent::Modifiers(2, false));
+
+            press!(1, 2, false);
+            assert_read!(E KeyEvent::Modifiers(2, true));
+
+            press!(1, 0, false);
+            assert_read!(KEY_UP, "leftshift");
+            assert_read!(NONE);
+        }
+    );
+}
+
+#[test]
+fn shift_shift_unicode_bug() {
+    setup!(
+        t,
+        press,
+        assert_read,
+        r#"
+[global]
+unicode_prefix          = macro(C-S-u)
+unicode_suffix          = macro(return)
+
+[matrix:2x3]
+0x00 = a    b c
+0x10 = lsft f rsft
+
+[aliases]
+leftshift = shift
+rightshift = shift
+
+[shift]
+shift = layer(emoji)
+
+[emoji]
+f = macro(👎)
+"#,
+        {
+            // ld, rd, fd, fu ru, lu
+            press!(1, 0, true);
+            assert_read!(KEY_DOWN, "leftshift");
+
+            press!(1, 2, true);
+            assert_read!(E KeyEvent::Modifiers(2, false));
+            press!(1, 1, true);
+
+            assert_read!(E KeyEvent::PendingModifiers(3, true));
+            assert_read!(TAP "u");
+            assert_read!(E KeyEvent::Modifiers(3, false));
+
+            assert_read!(TAP "1");
+            assert_read!(TAP "f");
+            t.check_time();
+            assert_read!(TAP "4");
+            assert_read!(TAP "4");
+            assert_read!(TAP "e");
+            assert_read!(TAP "return");
+
+            press!(1, 1, false);
+
+            press!(1, 0, false);
+            assert_read!(NONE);
+
+            press!(1, 2, false);
+            press!(1, 1, true);
+            press!(1, 1, false);
+
+            assert_read!(KEY_DOWN, "f");
+            assert_read!(KEY_UP, "f");
         }
     );
 }
@@ -1340,7 +1503,7 @@ c = macro(a macro(B macro(cd) e) f)
             assert_read!(E KeyEvent::PendingModifiers(2, true));
             assert_read!(KEY_DOWN, "b");
             assert_read!(KEY_UP, "b");
-            assert_read!(KEY_UP, "leftshift");
+            assert_read!(E KeyEvent::Modifiers(2, false));
 
             assert_read!(KEY_DOWN, "c");
             assert_read!(KEY_UP, "c");
@@ -1451,7 +1614,7 @@ e = 2
             assert_read!(KEY_DOWN, "1");
             press!(1, 1, false);
             assert_read!(KEY_UP, "1");
-            assert_read!(KEY_DOWN, "leftshift");
+            assert_read!(E KeyEvent::Modifiers(2, true));
 
             press!(0, 0, false);
             assert_read!(KEY_UP, "leftshift");
