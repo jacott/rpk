@@ -31,20 +31,45 @@ mod no_defmt {
 
 #[cfg(all(not(test), feature = "defmt"))]
 mod defmt {
+    /// Convience macro to use whilst debugging code. It will call the [defmt::debug] macro.
+    ///
+    /// This macro works with either defmt or nothing. When testing on the host Operating system
+    /// `eprintln!` will be called. In order to work with both `defmt` and `eprintln` the argument must
+    /// derive `Debug`.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// # #[macro_use] extern crate rpk_firmware;
+    /// # fn main() {
+    /// let i = 123;
+    /// let j = "abc";
+    /// fixme!(("test", i, j));
+    /// # }
+    /// ```
     #[macro_export]
     macro_rules! fixme {
         ($a:expr) => {
-            defmt::debug!(
-                // split so that not found when looking for the fixme ! in an editor
-                "FIXME: at {}:{}:{}\n{:?}",
-                file!(),
-                line!(),
-                column!(),
-                $a,
-            )
+            defmt::debug!("FIXME: at {}:{}:{}\n{:?}", file!(), line!(), column!(), $a,)
         };
     }
 
+    /// Log debug messages. It will call the [defmt::debug] macro.
+    ///
+    /// This macro works with either defmt or nothing. When testing on the host Operating system `eprintln!`
+    /// will be called. In order to work with both `defmt` and `eprintln` only the debug syntax can be used;
+    /// not the [defmt::Formatter] syntax.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// # #[macro_use] extern crate rpk_firmware;
+    /// # fn main() {
+    /// let i = 123;
+    /// let j = "abc";
+    /// debug!("testing {}, {:?}", i, j);
+    /// # }
+    /// ```
     #[macro_export]
     macro_rules! debug {
         ($($arg:expr),*) => {

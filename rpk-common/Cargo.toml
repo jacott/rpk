@@ -12,4 +12,4 @@ readme.workspace = true
 
 [lib]
 bench = false
-doctest = false
+doctest = true

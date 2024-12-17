@@ -12,7 +12,7 @@ readme.workspace = true
 
 [lib]
 bench = false
-doctest = false
+doctest = true
 
 [dependencies]
 defmt = { workspace = true, optional = true}

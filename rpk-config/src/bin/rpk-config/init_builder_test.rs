@@ -18,7 +18,8 @@ fn build() -> anyhow::Result<()> {
         r#"[package]
 name = "my-keeb""#
     ));
-    assert!(v.contains(r#"rpk-builder = {version = "0.1", features = ["rp", "reset-on-panic"]}"#));
+
+    assert!(v.contains(r#"rpk-builder = { version = "0.2", features = ["rp", "reset-on-panic"] }"#));
     assert!(v.contains(r#"rpk-builder/defmt"#));
 
     let v = fs::read_to_string(root.join("my-keeb/build.rs"))?;
@@ -68,11 +69,12 @@ rustflags = ["-C", "linker=flip-link"]
 
     let v = fs::read_to_string(root.join("my-keeb/default-layout.rpk.conf"))?;
 
-    assert!(v.starts_with(
+    assert_eq!(
+        v,
         r#"[firmware]
 
-vendor_id     = 0xfeed
-product_id    = 0xkeeb
+vendor_id     = 0xfeed # REPLACE THIS
+product_id    = 0xceeb # REPLACE THIS
 serial_number = rpk:123456
 
 manufacturer  = MISSING
@@ -91,11 +93,11 @@ flash_size          = 2 * 1024 * 1024
 fs_base             = 0x100000
 fs_size             = flash_size - fs_base
 
-[matrix:rxc]
+[matrix:rxc] # matches the number of pins above
 
 0x00 = q w e r t y
 "#
-    ));
+    );
 
     let v = fs::read_to_string(root.join("my-keeb/.gitignore"))?;
 

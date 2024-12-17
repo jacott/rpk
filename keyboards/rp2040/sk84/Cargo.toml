@@ -14,7 +14,7 @@ embassy-usb = { version = "0.3", features = [
   "max-interface-count-8",
   "max-handler-count-2",
 ] }
-rpk-builder = { version = "0.2", features = ["rp", "reset-on-panic"]}
+rpk-builder = { version = "0.2", features = ["rp", "reset-on-panic"] }
 
 [build-dependencies.rpk-config]
 version = "0.2"

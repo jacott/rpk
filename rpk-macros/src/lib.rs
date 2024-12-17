@@ -1,4 +1,4 @@
-//! This crate is used by [rpk-builder](https://docs.rs/rpk-builder).
+//! This crate is used by [rpk-builder](https://doc.rs/rpk-builder).
 extern crate proc_macro;
 
 #[allow(unused)]
