@@ -1,14 +1,5 @@
 [target.thumbv6m-none-eabi]
-runner = [
-  "probe-rs",
-  "run",
-  "--chip",
-  "RP2040",
-  "--speed",
-  "5000",
-  "--log-format",
-  "{L} {s}",
-]
+runner = "elf2uf2-rs -d"
 
 linker = "flip-link"
 
@@ -16,6 +7,3 @@ rustflags = ["-C", "linker=flip-link"]
 
 [build]
 target = "thumbv6m-none-eabi"        # Cortex-M0 and Cortex-M0+
-
-[env]
-DEFMT_LOG = "debug"

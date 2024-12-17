@@ -40,51 +40,18 @@ impl KeyboardBuilder {
     }
 
     fn create_cargo_toml(&self) -> anyhow::Result<()> {
+        let s = include_str!("../../../../keyboards/rp2040/sk84/Cargo.toml");
+        let s = &s[s.find("version =").expect("should contain 'version ='")
+            ..s.rfind("[patch.crates-io]")
+                .expect("should find [patch.crates-io]")];
+
         let s = String::from(
-            r##"[package]
-name = "{{NAME}}"
-version = "0.1.0"
-edition = "2021"
-publish = false
+            r#"[package]
+name = "sk84"
+"#,
+        ) + s;
+        let s = s.replace("sk84", &self.name);
 
-[workspace]
-
-[dependencies]
-cortex-m = { version = "0.7", features = ["inline-asm"] }
-cortex-m-rt = "0.7"
-embassy-executor = { version = "0.6", features = ["task-arena-size-32768"] }
-embassy-usb = { version = "0.3", features = [
-  "max-interface-count-8",
-  "max-handler-count-2",
-] }
-rpk-builder = {version = "0.1", features = ["rp", "reset-on-panic"]}
-
-[build-dependencies.rpk-config]
-version = "0.1"
-
-[[bin]]
-name = "{{NAME}}"
-test = false
-doctest = false
-bench = false
-
-[profile.release]
-debug = 0
-opt-level = 'z'
-lto = true
-panic = "abort"
-
-[profile.dev]
-debug = 2
-opt-level = 'z'
-lto = true
-
-[features]
-defmt = ["rpk-builder/defmt"]
-"##,
-        );
-
-        let s = s.replace("{{NAME}}", &self.name);
         self.create_file("Cargo.toml", &s)
     }
 
@@ -99,51 +66,21 @@ rpk_builder::rp_run_keyboard! {}
     }
 
     fn create_gitignore(&self) -> anyhow::Result<()> {
-        let s = r##"target
-"##;
-
-        self.create_file(".gitignore", s)
+        self.create_file(".gitignore", "target\n")
     }
 
     fn create_memory_x(&self) -> anyhow::Result<()> {
-        let s = r##"MEMORY {
-    BOOT2 : ORIGIN = 0x10000000, LENGTH = 0x100
-    FLASH : ORIGIN = 0x10000100, LENGTH = 2048K - 0x100
-
-    /* Pick one of the two options for RAM layout     */
-
-    /* OPTION A: Use all RAM banks as one big block   */
-    /* Reasonable, unless you are doing something     */
-    /* really particular with DMA or other concurrent */
-    /* access that would benefit from striping        */
-    RAM   : ORIGIN = 0x20000000, LENGTH = 264K
-
-    /* OPTION B: Keep the unstriped sections separate */
-    /* RAM: ORIGIN = 0x20000000, LENGTH = 256K        */
-    /* SCRATCH_A: ORIGIN = 0x20040000, LENGTH = 4K    */
-    /* SCRATCH_B: ORIGIN = 0x20041000, LENGTH = 4K    */
-}
-"##;
-
-        self.create_file("memory.x", s)
+        self.create_file(
+            "memory.x",
+            include_str!("../../../../keyboards/rp2040/sk84/memory.x"),
+        )
     }
 
     fn create_config_toml(&self) -> anyhow::Result<()> {
-        let s = r##"[target.thumbv6m-none-eabi]
-runner = "elf2uf2-rs -d"
-
-linker = "flip-link"
-
-rustflags = ["-C", "linker=flip-link"]
-
-[build]
-target = "thumbv6m-none-eabi"        # Cortex-M0 and Cortex-M0+
-
-[env]
-DEFMT_LOG = "debug"
-"##;
-
-        self.create_file(".cargo/config.toml", s)
+        self.create_file(
+            ".cargo/config.toml",
+            include_str!("../../../../keyboards/rp2040/sk84/.cargo/config.toml"),
+        )
     }
 
     fn create_build_rs(&self) -> anyhow::Result<()> {
@@ -158,8 +95,8 @@ DEFMT_LOG = "debug"
     fn create_rpk_conf(&self) -> anyhow::Result<()> {
         let s = r#"[firmware]
 
-vendor_id     = 0xfeed
-product_id    = 0xkeeb
+vendor_id     = 0xfeed # REPLACE THIS
+product_id    = 0xceeb # REPLACE THIS
 serial_number = rpk:123456
 
 manufacturer  = MISSING
@@ -178,7 +115,7 @@ flash_size          = 2 * 1024 * 1024
 fs_base             = 0x100000
 fs_size             = flash_size - fs_base
 
-[matrix:rxc]
+[matrix:rxc] # matches the number of pins above
 
 0x00 = q w e r t y
 "#;
