@@ -110,5 +110,23 @@ Layers can be definied more than once in a conf file but only the first definiti
 modifiers; any subsequent definition with modifiers will ignore the modifiers. The six default
 layers can never have their modifiers changed.
 
+## Composite layers
+
+Layers can be combined to form composite layers. Composite layers are named with existing layers
+delimited by a `+`. The layer will be active when, and only when, all the constituent names are
+active and is given precedence. Only the first 32 layers may be used as a constituent of a composite
+layer.
+
+#### Example
+
+```ini
+[control+alt]
+
+i = up
+```
+
+This will cause `control-alt-i` to send the `up` key event while `control-alt-j` will preserve the
+modifiers and send exactly what is pressed since `j` is not defined in the composite layer.
+
 [1]: matrix.md
 [2]: actions.md

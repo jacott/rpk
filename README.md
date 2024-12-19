@@ -8,8 +8,8 @@ building firmware for your keyboard.
 
 - Text file configuration which can be uploaded instantly via the `rpk-config` companion program (no
   need to re-flash firmware).
-- 256 low cost layers.
-- Arbitrarily many macros.
+- 256 low cost layers (first 32 can be composite).
+- 4096 macros.
 - Sensible key overloading, oneshot layers and changeable base layout.
 - Modifiers are layers.
 - Mouse support with changeable acceleration profiles.
@@ -25,7 +25,6 @@ building firmware for your keyboard.
 Example is for a [3x3 macropad][4] with a [Raspberry Pi Pico][5] (rp2040) micro controller.
 
 ```ini
-
 [firmware]
 
 # USB interface
@@ -101,7 +100,6 @@ scanner_buffer_size = 32
 - Web and binary Graphical configuration app.
 - Host daemon app for displaying keyboard information and changing keyboard layers/configuration
   based on host application in focus.
-- Composite layers.
 - Tap dance.
 - record/play macros and store in flash.
 - Key chording.

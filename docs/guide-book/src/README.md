@@ -7,10 +7,10 @@ RPK uses the configuration model of [keyd][2] which allows for many more layers 
 
 The current features of RPK include:
 
-- Text file configuration which can be uploaded instantly via the rpk-config companion program (no
+- Text file configuration which can be uploaded instantly via the `rpk-config` companion program (no
   need to re-flash firmware).
-- 256 low cost layers.
-- Arbitrarily many macros.
+- 256 low cost layers (first 32 can be composite).
+- 4096 macros.
 - Sensible key overloading, oneshot layers and changeable base layout.
 - Modifiers are layers.
 - Mouse support with changeable acceleration profiles.
