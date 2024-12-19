@@ -120,8 +120,9 @@ j = left
 u = C-left
 ```
 
-Here when the `nav` layer is active holding `j` will result in a `leftcontrol` up then `left` down;
-whereas holding `u` will result in just a `left` down.
+Here when the `nav` layer is active holding `j` will result in reporting release `leftcontrol`
+followed by hold `left` to the host whereas holding `u` will result in just a hold `left` being
+reported.
 
 ---
 
