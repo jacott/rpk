@@ -117,7 +117,7 @@ fn invalid_arg_char(c: char) -> bool {
 }
 
 fn invalid_section_char(c: char) -> bool {
-    !matches!(c, '-' | '_' | '\\' | '.' | ':') && !c.is_alphanumeric()
+    matches!(c, '-' | '\\' | '.' | ':') || (!matches!(c, '+' | '_') && !c.is_alphanumeric())
 }
 
 pub struct KeyboardConfig<'source> {
@@ -206,36 +206,35 @@ impl<'source> Parser<'source> {
                 Some(start) => {
                     if start.1 == '[' {
                         self.mark_start();
-                        let maybe_tag_end = self
-                            .iter
-                            .find(|c| matches!(c, ']' | ':' | '.') || invalid_section_char(c));
-                        if let Some(tag_end) = maybe_tag_end {
-                            let maybe_end = match tag_end.1 {
-                                ':' | '.' => {
-                                    self.iter.find(|c| c == ']' || invalid_section_char(c))
-                                }
-                                _ => maybe_tag_end,
-                            };
-                            if let Some(end) = maybe_end {
-                                let tag_name = &self.config.source[start.0 + 1..tag_end.0];
-                                match tag_name {
-                                    "global" => self.parse_global(tag_end.0 + 1..end.0)?,
-                                    "matrix" => self.parse_matrix()?,
-                                    "firmware" => {
-                                        self.assert_no_suffix(tag_end.0, end.0)?;
-                                        self.parse_firmware()?
-                                    }
-                                    "aliases" => {
-                                        self.assert_no_suffix(tag_end.0, end.0)?;
-                                        self.parse_aliases()?
-                                    }
-                                    _ => self.parse_layer(tag_name)?,
-                                }
-                                continue;
+                        let tag_end = match self.iter.find(|c| matches!(c, ']' | '\n')) {
+                            Some(tag_end) if tag_end.1 == ']' => tag_end,
+                            v => {
+                                return Err(error_span(
+                                    "Missing section end delimiter ']'",
+                                    start.0..v.map(|v| v.0).unwrap_or(self.iter.len),
+                                ))
                             }
-                        }
+                        };
+                        let full_tag_name = &self.config.source[start.0 + 1..tag_end.0];
+                        let tag_name = full_tag_name
+                            .split_once(invalid_section_char)
+                            .map(|n| n.0)
+                            .unwrap_or(full_tag_name);
 
-                        return Err(ConfigError::new("missing ']'".into(), start.0..start.0 + 1));
+                        let rem = start.0 + 1 + tag_name.len()..tag_end.0;
+                        match tag_name {
+                            "global" => self.parse_global(rem)?,
+                            "matrix" => self.parse_matrix()?,
+                            "firmware" => {
+                                self.assert_no_suffix(rem)?;
+                                self.parse_firmware()?
+                            }
+                            "aliases" => {
+                                self.assert_no_suffix(rem)?;
+                                self.parse_aliases()?
+                            }
+                            _ => self.parse_layer(start.0 + 1..rem.start)?,
+                        }
                     } else {
                         return Err(ConfigError::new(
                             "expected '['".into(),
@@ -250,7 +249,10 @@ impl<'source> Parser<'source> {
     fn parse_global(&mut self, suffix: SourceRange) -> Result<()> {
         if suffix.start < suffix.end {
             let name = self.name(&suffix);
-            let (name, field) = name.split_once('.').unwrap_or((name, ""));
+            if !matches!(name.chars().next(), Some('.')) {
+                return Err(error_span("Invalid global name", suffix));
+            }
+            let (name, field) = name[1..].split_once('.').unwrap_or((name, ""));
 
             match self.config.take_global(name) {
                 Ok(mut g) => {
@@ -412,7 +414,15 @@ impl<'source> Parser<'source> {
         Ok(())
     }
 
-    fn parse_layer(&mut self, name: &str) -> Result<()> {
+    fn parse_layer(&mut self, name_range: SourceRange) -> Result<()> {
+        let name = self.name(&name_range);
+
+        let mut i = name_range.start;
+        for l in name.split('+') {
+            let _ = self.get_layer_index(i..i + l.len())?;
+            i += l.len() + 1;
+        }
+
         while let Some(pos) = self.skip_whitespace() {
             if pos.1 == '[' {
                 return Ok(());
@@ -899,14 +909,11 @@ impl<'source> Parser<'source> {
         self.iter.find(non_ws_char)
     }
 
-    fn assert_no_suffix(&self, tag_end: usize, end: usize) -> Result<()> {
-        if tag_end == end {
+    fn assert_no_suffix(&self, range: SourceRange) -> Result<()> {
+        if range.is_empty() {
             Ok(())
         } else {
-            Err(ConfigError::new(
-                "suffix not allowed here".into(),
-                tag_end..end,
-            ))
+            Err(ConfigError::new("suffix not allowed here".into(), range))
         }
     }
 }
@@ -1311,8 +1318,15 @@ impl<'source> KeyboardConfig<'source> {
                     s..i,
                 ));
             }
-            "aliases" => {}
+            "aliases" | "global" => {}
+            _ if name.starts_with("global.") => {}
             _ => {
+                if let Some(pos) = name.find(invalid_section_char) {
+                    return Err(ConfigError::new(
+                        format!("Invalid layer name: '{}' not allowed", &name[pos..pos + 1]),
+                        s..i,
+                    ));
+                }
                 let code = keycodes::modifiers_to_bit_map(suffix).ok_or_else(|| {
                     ConfigError::new(format!("Invalid layer suffix '{}'", suffix), e + 1..i)
                 })?;

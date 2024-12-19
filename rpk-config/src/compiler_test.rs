@@ -448,6 +448,62 @@ a = z
 }
 
 #[test]
+fn composite_layer() {
+    let src = r#"
+[matrix:2x2]
+0x00 = a b
+0x10 = c d
+
+[shift+alt]
+
+a = z
+"#;
+
+    let config = pretty_compile(src).unwrap();
+
+    let layer = config.layers.get("shift+alt").unwrap();
+
+    assert_eq!(layer.suffix, 0);
+    assert_eq!(layer.code_at(0), 29);
+}
+
+#[test]
+fn missing_composite_layer() {
+    let src = r#"
+[matrix:2x2]
+0x00 = a b
+0x10 = c d
+
+[shift+no_layer]
+
+a = z
+"#;
+
+    let config = test_compile(src).err().unwrap();
+
+    assert_eq!(config.message, "Unknown layer name no_layer");
+    assert_eq!(config.span.unwrap(), 44..52);
+}
+
+#[test]
+fn bad_layer_name() {
+    let src = r#"
+[matrix:2x2]
+0x00 = a b
+0x10 = c d
+
+[bad_la,yer]
+
+a = z
+"#;
+
+    let config = test_compile(src).err().unwrap();
+
+    assert_eq!(config.message, "Invalid layer name: ',' not allowed");
+    assert_eq!(config.span.unwrap(), 38..48);
+}
+
+#[test]
 fn invalid_alias_multi_assign() {
     let src = r#"
 [matrix:2x2]
@@ -719,7 +775,7 @@ max_ticks_per_ms = 5.0
     assert_eq!(mp.scroll.max_ticks_per_ms, 3.5);
 
     let bin = config.serialize();
-    assert_eq!(bin.len(), 66);
+    assert_eq!(bin.len(), 60);
 
     let c2 = KeyboardConfig::deserialize(&bin);
 
@@ -862,7 +918,7 @@ fn global_dual_action_timeout() {
 
         assert_eq!(
             bin,
-            [1, 0, 7, 0, 2, 0, 500, 8, 9, 10, 11, 12, 13, 14, 15, 1, 2, 4, 8, 64, 0, 0]
+            [1, 0, 6, 0, 2, 0, 500, 7, 8, 9, 10, 11, 12, 13, 1, 2, 4, 8, 64, 0]
         );
     });
 }
@@ -889,7 +945,7 @@ fn global_dual_action_timeout2() {
 
         assert_eq!(
             bin,
-            [1, 0, 7, 0, 2, 1, 50, 8, 9, 10, 11, 12, 13, 14, 15, 1, 2, 4, 8, 64, 0, 0]
+            [1, 0, 6, 0, 2, 1, 50, 7, 8, 9, 10, 11, 12, 13, 1, 2, 4, 8, 64, 0]
         );
     });
 }
@@ -916,7 +972,7 @@ fn global_debounce_settle_time() {
 
         assert_eq!(
             bin,
-            [1, 0, 7, 0, 2, 2, 235, 8, 9, 10, 11, 12, 13, 14, 15, 1, 2, 4, 8, 64, 0, 0]
+            [1, 0, 6, 0, 2, 2, 235, 7, 8, 9, 10, 11, 12, 13, 1, 2, 4, 8, 64, 0]
         );
     });
 }
