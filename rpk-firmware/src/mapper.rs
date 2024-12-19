@@ -697,7 +697,11 @@ impl<
             idx => idx - 4,
         };
         if is_down {
-            self.layout.push_layer(layer as u16);
+            if layer != idx && idx != 6 {
+                self.layout.push_right_mod_layer(layer as u16);
+            } else {
+                self.layout.push_layer(layer as u16);
+            }
             self.write_down_modifiers(1 << idx, false);
         } else {
             self.layout.pop_layer(layer as u16);

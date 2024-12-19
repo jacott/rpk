@@ -9,6 +9,8 @@ use crate::mapper::{macros::Macro, KeyPlusMod};
 
 pub const MAIN_BASE: u16 = 5;
 
+pub const RIGHT_MOD: u16 = 0x8000;
+
 pub struct Manager<const ROWS: usize, const COLS: usize, const CODE_SIZE: usize> {
     mapping: [u16; CODE_SIZE],
     globals: Globals,
@@ -225,13 +227,21 @@ impl<const ROWS: usize, const COLS: usize, const LAYOUT_MAX: usize>
             .iter()
             .rev()
         {
-            if let Some(layer) = self.get_layer(layer_idx) {
+            if let Some(layer) = self.get_layer(layer_idx & 0xff) {
                 let code = layer.get(row, column);
                 if code != 0 {
                     if code < key_range::BASIC_MIN {
                         return None;
                     }
-                    return Some(KeyPlusMod::new(code, layer.modifiers()));
+                    let mods = layer.modifiers();
+                    return Some(KeyPlusMod::new(
+                        code,
+                        if layer_idx & RIGHT_MOD != 0 {
+                            mods << 4
+                        } else {
+                            mods
+                        },
+                    ));
                 }
             }
         }
@@ -290,12 +300,16 @@ impl<const ROWS: usize, const COLS: usize, const LAYOUT_MAX: usize>
         true
     }
 
+    pub fn push_right_mod_layer(&mut self, n: u16) -> bool {
+        self.push_layer(n | RIGHT_MOD)
+    }
+
     pub fn pop_layer(&mut self, n: u16) -> bool {
         if let Some((i, _)) = self.mapping[self.layout_bottom..self.layout_top]
             .iter()
             .copied()
             .enumerate()
-            .rfind(|(_, v)| *v == n)
+            .rfind(|(_, v)| *v & 0xff == n)
         {
             self.mapping.copy_within(
                 self.layout_bottom + i + 1..self.layout_top,

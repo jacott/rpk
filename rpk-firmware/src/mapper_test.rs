@@ -1185,6 +1185,44 @@ g = C-S-m
 }
 
 #[test]
+fn right_modifier_layer() {
+    setup!(
+        t,
+        press,
+        assert_read,
+        r#"
+[matrix:2x3]
+0x00 = a b c
+0x10 = lsft f rsft
+
+[shift]
+a = 1
+rightshift = layer(nav)
+
+[nav]
+"#,
+        {
+            press!(1, 2, true);
+            assert_read!(KEY_DOWN, "rightshift");
+
+            press!(0, 0, true);
+            assert_read!(E KeyEvent::PendingModifiers(0x20, false));
+            assert_read!(KEY_DOWN, "1");
+
+            press!(0, 0, false);
+            assert_read!(KEY_UP, "1");
+            assert_read!(E KeyEvent::Modifiers(0x20, true));
+
+            press!(1, 2, false);
+            assert_read!(KEY_UP, "rightshift");
+
+            press!(1, 2, true);
+            assert_read!(KEY_DOWN, "rightshift");
+        }
+    );
+}
+
+#[test]
 fn modifier_layer() {
     setup!(
         t,
@@ -1629,10 +1667,11 @@ e = 2
 
             press!(1, 1, true);
 
+            assert_read!(E KeyEvent::PendingModifiers(32, false));
             assert_read!(KEY_DOWN, "1");
 
             press!(0, 1, false);
-            assert_read!(KEY_UP, "rightshift");
+            assert_read!(NONE);
 
             // modifier altgr key press change
             press!(0, 2, true);

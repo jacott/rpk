@@ -2,7 +2,7 @@
 
 Layers allow keyboard switches to execute more than one action or keycode. Multiple layers may be
 active at any given time. At least one layer is always active and is known as the base layout. The
-base layout defaults to `main` which is initially defined by the [matrix section][1].
+base layout defaults to `[main]` which is initially defined by the [matrix section][1].
 
 Each layer contains a list of assignments which alter the [keycode/action][2] produced by a keyboard
 switch matrix location. Each assignment is of the form:
@@ -35,10 +35,10 @@ g = layer(shift) macro(hello) layer(control)
 
 ## Modifiers
 
-Besides the `main` layer there are five other layers that are always defined: `control`, `shift`,
-`alt`, `gui`, and `altgr`. These are the modifier layers and are bound to the modifier keycodes.
-This means that when, say the left (or right) control key is held, the `control` layer will become
-active. The same applies to `shift` and `gui`. `alt` relates to the `leftalt` keycode, `altgr`
+Besides the `[main]` layer there are five other layers that are always defined: `[control]`, `[shift]`,
+`[alt]`, `[gui]`, and `[altgr]`. These are the modifier layers and are bound to the modifier keycodes.
+This means that when, say the left (or right) control key is held, the `[control]` layer will become
+active. The same applies to `[shift]` and `[gui]`. `[alt]` relates to the `leftalt` keycode, `[altgr]`
 refers to the `rightalt` keycode. These modifiers can be applied to any user defined layer in the
 form of a layer suffix. This makes the layer behave like a modifier layer. The format of the suffix
 is a follows:
@@ -82,12 +82,12 @@ nav = layer(nav)
 8 =       up
 4 = left down right
 
-[shift] # implies the :S suffix
+[shift] # implies the :S suffix (or :RS if invoked by rightshift)
 
 nav = space
 ```
 
-When the `nav` key is held the `nav` layer becomes active. Also because it has modifiers the
+When the `nav` key is held the `[nav]` layer becomes active. Also because it has modifiers the
 `leftalt` and `leftgui` keycodes are sent to the host to report that they are held.
 
 When the `7` key is tapped whilst the `nav` key is still held the keycode for 7 will be sent to the
@@ -99,10 +99,16 @@ keycode, then the release of the `up` then finally by the reapplication of the `
 `leftgui`.
 
 Now if `nav` is finally released then the host will receive a release of `leftalt` and `leftgui` and
-the `nav` layer will be deactivated.
+the `[nav]` layer will be deactivated.
+
+The `[control]`, `[shift]` and `[gui]` layers differ from other layers when they are made active by
+`rightcontrol`, `rightshift` and `rightgui` respectively; in that case the right modifiers will be
+reported instead of the left whilst the layer is active. In the case above, holding `rightshift`,
+`nav` will result in the report of `rightshift` hold, `rightshift` release, `space` hold.
 
 Layers can be definied more than once in a conf file but only the first definition can contain
-modifiers; any subsequent definition with modifiers will ignore the modifiers.
+modifiers; any subsequent definition with modifiers will ignore the modifiers. The six default
+layers can never have their modifiers changed.
 
 [1]: matrix.md
 [2]: actions.md
