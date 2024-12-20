@@ -8,6 +8,9 @@ use crate::kc;
 
 use super::*;
 
+use KeyEvent::Modifiers;
+use KeyEvent::PendingModifiers;
+
 extern crate std;
 
 const KEY_UP: usize = 0;
@@ -114,7 +117,7 @@ v = G-3
         {
             press!(5, 3, true);
             press!(3, 4, true);
-            assert_read!(E KeyEvent::PendingModifiers(8, true));
+            assert_read!(E PendingModifiers(8, true));
             assert_read!(KEY_DOWN, "3");
         }
     );
@@ -178,7 +181,7 @@ a = q
 "#,
         {
             press!(1, 2, true);
-            assert_read!(E KeyEvent::PendingModifiers(1, true));
+            assert_read!(E PendingModifiers(1, true));
             press!(0, 0, TAP);
 
             assert_read!(KEY_DOWN, "g");
@@ -208,7 +211,7 @@ a = q
 
             t.check_time();
 
-            assert_read!(E KeyEvent::PendingModifiers(2, true));
+            assert_read!(E PendingModifiers(2, true));
             assert_read!(E KeyEvent::mouse_button(1));
         }
     );
@@ -239,7 +242,7 @@ a = q
             assert_read!(KEY_DOWN, "leftshift");
             assert_read!(KEY_DOWN, "leftalt");
 
-            assert_read!(E KeyEvent::Modifiers(0, false));
+            assert_read!(E Modifiers(0, false));
             assert!(!t.pop_layer(1));
             assert!(!t.pop_layer(2));
             assert!(!t.pop_layer(6));
@@ -581,8 +584,7 @@ a = oneshot(shift)
 
             press!(0, 1, TAP);
 
-            assert_read!(KEY_DOWN, "b");
-            assert_read!(KEY_UP, "b");
+            assert_read!(TAP "b");
             assert_read!(KEY_UP, "leftshift");
 
             assert_read!(NONE);
@@ -882,8 +884,7 @@ g = overload(alt, g, 100)
             // tap timeout
             {
                 press!(1, 2, true);
-                press!(1, 0, true);
-                press!(1, 0, false);
+                press!(1, 0, TAP);
                 advance!(19);
                 assert_read!(NONE);
 
@@ -898,8 +899,7 @@ g = overload(alt, g, 100)
                 assert_read!(NONE);
 
                 press!(0, 2, true);
-                press!(1, 0, true);
-                press!(1, 0, false);
+                press!(1, 0, TAP);
                 advance!(59);
                 assert_read!(NONE);
 
@@ -951,8 +951,7 @@ g = C-S-m
             // hold-dual + tap + hold, release-dual, release
             {
                 press!(0, 2, true);
-                press!(1, 0, true);
-                press!(1, 0, false);
+                press!(1, 0, TAP);
                 press!(1, 1, true);
 
                 assert_read!(KEY_DOWN, "leftshift");
@@ -1067,11 +1066,11 @@ g = C-S-m
                 press!(0, 2, false);
                 advance!(0);
 
-                assert_read!(E KeyEvent::PendingModifiers(1, true));
+                assert_read!(E PendingModifiers(1, true));
                 assert_read!(KEY_DOWN, "c");
                 assert!(t.run_memo());
                 assert_read!(KEY_UP, "c");
-                assert_read!(E KeyEvent::Modifiers(1, false));
+                assert_read!(E Modifiers(1, false));
                 advance!(180);
 
                 assert_read!(NONE);
@@ -1083,7 +1082,7 @@ g = C-S-m
                 press!(1, 0, true);
                 press!(0, 2, false);
 
-                assert_read!(E KeyEvent::PendingModifiers(1, true));
+                assert_read!(E PendingModifiers(1, true));
                 assert_read!(KEY_DOWN, "c");
                 assert_read!(NONE);
                 assert!(t.run_memo());
@@ -1092,7 +1091,7 @@ g = C-S-m
                 assert_read!(NONE);
                 assert!(t.run_memo());
                 assert_read!(KEY_UP, "c");
-                assert_read!(E KeyEvent::Modifiers(1, false));
+                assert_read!(E Modifiers(1, false));
 
                 press!(1, 0, false);
                 assert_read!(KEY_UP, "e");
@@ -1174,12 +1173,12 @@ g = C-S-m
 "#,
         {
             press!(1, 2, true);
-            assert_read!(E KeyEvent::PendingModifiers(3, true));
+            assert_read!(E PendingModifiers(3, true));
             assert_read!(KEY_DOWN, "m");
 
             press!(1, 2, false);
             assert_read!(KEY_UP, "m");
-            assert_read!(E KeyEvent::Modifiers(3, false));
+            assert_read!(E Modifiers(3, false));
         }
     );
 }
@@ -1206,12 +1205,12 @@ rightshift = layer(nav)
             assert_read!(KEY_DOWN, "rightshift");
 
             press!(0, 0, true);
-            assert_read!(E KeyEvent::PendingModifiers(0x20, false));
+            assert_read!(E PendingModifiers(0x20, false));
             assert_read!(KEY_DOWN, "1");
 
             press!(0, 0, false);
             assert_read!(KEY_UP, "1");
-            assert_read!(E KeyEvent::Modifiers(0x20, true));
+            assert_read!(E Modifiers(0x20, true));
 
             press!(1, 2, false);
             assert_read!(KEY_UP, "rightshift");
@@ -1259,32 +1258,32 @@ c = C-G-a
 
             // S-G-j
             press!(0, 2, true);
-            assert_read!(E KeyEvent::PendingModifiers(8, true));
+            assert_read!(E PendingModifiers(8, true));
             assert_read!(KEY_DOWN, "j");
             assert_read!(NONE);
 
             press!(0, 2, false);
             assert_read!(KEY_UP, "j");
-            assert_read!(E KeyEvent::Modifiers(8, false));
+            assert_read!(E Modifiers(8, false));
 
             t.pop_layer(1);
             assert_read!(KEY_UP, "leftshift");
 
             t.push_layer(6);
-            assert_read!(E KeyEvent::Modifiers(3, true));
+            assert_read!(E Modifiers(3, true));
             assert_read!(NONE);
 
             // C-G-a
             press!(0, 2, true);
-            assert_read!(E KeyEvent::PendingModifiers(2, false));
-            assert_read!(E KeyEvent::PendingModifiers(8, true));
+            assert_read!(E PendingModifiers(2, false));
+            assert_read!(E PendingModifiers(8, true));
             assert_read!(KEY_DOWN, "a");
             assert_read!(NONE);
 
             press!(0, 2, false);
             assert_read!(KEY_UP, "a");
-            assert_read!(E KeyEvent::PendingModifiers(8, false));
-            assert_read!(E KeyEvent::Modifiers(2, true));
+            assert_read!(E PendingModifiers(8, false));
+            assert_read!(E Modifiers(2, true));
         }
     );
 }
@@ -1319,17 +1318,17 @@ b = C-S-3
             press!(1, 0, true);
             assert_read!(KEY_DOWN, "leftshift");
             press!(1, 2, true);
-            assert_read!(E KeyEvent::Modifiers(2, false));
+            assert_read!(E Modifiers(2, false));
             press!(1, 0, false);
 
             press!(0, 1, true);
-            assert_read!(E KeyEvent::PendingModifiers(3, true));
+            assert_read!(E PendingModifiers(3, true));
             assert_read!(KEY_DOWN, "3");
             assert_read!(NONE);
 
             press!(0, 1, false);
             assert_read!(KEY_UP, "3");
-            assert_read!(E KeyEvent::Modifiers(3, false));
+            assert_read!(E Modifiers(3, false));
             assert_read!(NONE);
 
             press!(1, 2, false);
@@ -1340,10 +1339,10 @@ b = C-S-3
             assert_read!(KEY_DOWN, "leftshift");
 
             press!(1, 2, true);
-            assert_read!(E KeyEvent::Modifiers(2, false));
+            assert_read!(E Modifiers(2, false));
 
             press!(1, 2, false);
-            assert_read!(E KeyEvent::Modifiers(2, true));
+            assert_read!(E Modifiers(2, true));
 
             press!(1, 0, false);
             assert_read!(KEY_UP, "leftshift");
@@ -1354,32 +1353,28 @@ b = C-S-3
             assert_read!(KEY_DOWN, "leftshift");
 
             press!(1, 2, true);
-            assert_read!(E KeyEvent::Modifiers(2, false));
-            press!(1, 1, true);
-            press!(1, 1, false);
+            assert_read!(E Modifiers(2, false));
+            press!(1, 1, TAP);
 
-            assert_read!(KEY_DOWN, "2");
-            assert_read!(KEY_UP, "2");
+            assert_read!(TAP "2");
 
             press!(1, 0, false);
             assert_read!(NONE);
 
             press!(1, 2, false);
-            press!(1, 1, true);
-            press!(1, 1, false);
+            press!(1, 1, TAP);
 
-            assert_read!(KEY_DOWN, "f");
-            assert_read!(KEY_UP, "f");
+            assert_read!(TAP "f");
 
             // ldown, rdown, rup, lup
             press!(1, 0, true);
             assert_read!(KEY_DOWN, "leftshift");
 
             press!(1, 2, true);
-            assert_read!(E KeyEvent::Modifiers(2, false));
+            assert_read!(E Modifiers(2, false));
 
             press!(1, 2, false);
-            assert_read!(E KeyEvent::Modifiers(2, true));
+            assert_read!(E Modifiers(2, true));
 
             press!(1, 0, false);
             assert_read!(KEY_UP, "leftshift");
@@ -1419,12 +1414,12 @@ f = macro(👎)
             assert_read!(KEY_DOWN, "leftshift");
 
             press!(1, 2, true);
-            assert_read!(E KeyEvent::Modifiers(2, false));
+            assert_read!(E Modifiers(2, false));
             press!(1, 1, true);
 
-            assert_read!(E KeyEvent::PendingModifiers(3, true));
+            assert_read!(E PendingModifiers(3, true));
             assert_read!(TAP "u");
-            assert_read!(E KeyEvent::Modifiers(3, false));
+            assert_read!(E Modifiers(3, false));
 
             assert_read!(TAP "1");
             assert_read!(TAP "f");
@@ -1440,11 +1435,9 @@ f = macro(👎)
             assert_read!(NONE);
 
             press!(1, 2, false);
-            press!(1, 1, true);
-            press!(1, 1, false);
+            press!(1, 1, TAP);
 
-            assert_read!(KEY_DOWN, "f");
-            assert_read!(KEY_UP, "f");
+            assert_read!(TAP "f");
         }
     );
 }
@@ -1477,21 +1470,18 @@ c = macro(🆕)
         {
             press!(0, 2, true);
 
-            assert_read!(E KeyEvent::PendingModifiers(3, true));
-            assert_read!(KEY_DOWN, "u");
-            assert_read!(KEY_UP, "u");
-            assert_read!(E KeyEvent::Modifiers(3, false));
+            assert_read!(E PendingModifiers(3, true));
+            assert_read!(TAP "u");
+            assert_read!(E Modifiers(3, false));
 
             for c in b"1f195" {
                 t.check_time();
                 let c = [*c];
                 let c = str::from_utf8(&c).unwrap();
-                assert_read!(KEY_DOWN, c);
-                assert_read!(KEY_UP, c);
+                assert_read!(TAP c);
             }
 
-            assert_read!(KEY_DOWN, "return");
-            assert_read!(KEY_UP, "return");
+            assert_read!(TAP "return");
 
             assert_read!(E KeyEvent::Delay(20));
 
@@ -1533,35 +1523,29 @@ c = macro(a macro(B macro(cd) e) f)
 
             assert_eq!(timer!(), t.now);
 
-            assert_read!(KEY_DOWN, "a");
-            assert_read!(KEY_UP, "a");
+            assert_read!(TAP "a");
 
             t.now = 123_100;
 
-            assert_read!(E KeyEvent::PendingModifiers(2, true));
-            assert_read!(KEY_DOWN, "b");
-            assert_read!(KEY_UP, "b");
-            assert_read!(E KeyEvent::Modifiers(2, false));
+            assert_read!(E PendingModifiers(2, true));
+            assert_read!(TAP "b");
+            assert_read!(E Modifiers(2, false));
 
-            assert_read!(KEY_DOWN, "c");
-            assert_read!(KEY_UP, "c");
+            assert_read!(TAP "c");
 
             assert_read!(NONE); // out of room
 
             t.check_time();
 
-            assert_read!(KEY_DOWN, "d");
-            assert_read!(KEY_UP, "d");
+            assert_read!(TAP "d");
 
             t.check_time();
 
-            assert_read!(KEY_DOWN, "e");
-            assert_read!(KEY_UP, "e");
+            assert_read!(TAP "e");
 
             t.check_time();
 
-            assert_read!(KEY_DOWN, "f");
-            assert_read!(KEY_UP, "f");
+            assert_read!(TAP "f");
 
             assert_eq!(timer!(), u64::MAX / 1000);
 
@@ -1648,11 +1632,11 @@ e = 2
 
             // f mapped to 1 shift temporary released
             press!(1, 1, true);
-            assert_read!(E KeyEvent::PendingModifiers(2, false));
+            assert_read!(E PendingModifiers(2, false));
             assert_read!(KEY_DOWN, "1");
             press!(1, 1, false);
             assert_read!(KEY_UP, "1");
-            assert_read!(E KeyEvent::Modifiers(2, true));
+            assert_read!(E Modifiers(2, true));
 
             press!(0, 0, false);
             assert_read!(KEY_UP, "leftshift");
@@ -1667,7 +1651,7 @@ e = 2
 
             press!(1, 1, true);
 
-            assert_read!(E KeyEvent::PendingModifiers(32, false));
+            assert_read!(E PendingModifiers(32, false));
             assert_read!(KEY_DOWN, "1");
 
             press!(0, 1, false);
@@ -1678,7 +1662,7 @@ e = 2
             assert_read!(KEY_DOWN, "rightalt");
             press!(1, 0, true);
 
-            assert_read!(E KeyEvent::PendingModifiers(64, false));
+            assert_read!(E PendingModifiers(64, false));
             assert_read!(KEY_DOWN, "2");
 
             press!(0, 2, false);
