@@ -131,6 +131,7 @@ pub struct KeyboardConfig<'source> {
     macros_names: HashMap<Vec<u16>, u16>,
     macros: Vec<Macro>,
     next_layer: u16,
+    composite_start_index: u16,
     pub row_count: u8,
     pub col_count: u8,
 }
@@ -140,6 +141,7 @@ pub struct ConfigLayer {
     codes: HashMap<u16, u16>,
     index: u16,
     suffix: u8,
+    composite_part: bool,
 }
 
 #[derive(Debug, PartialEq)]
@@ -420,14 +422,25 @@ impl<'source> Parser<'source> {
         let mut i = name_range.start;
         if name.contains('+') {
             for l in name.split('+') {
-                if self.get_layer_index(i..i + l.len())? > 31 {
+                let Some(layer) = self.config.layers.get_mut(l) else {
+                    self.get_layer_index(i..i + l.len())?;
+                    unreachable!();
+                };
+                if layer.index > 31 {
                     return Err(error_span(
-                        "Only the first 32 layers can be used as part of a composite layer",
+                        "Only 32 layers can be used as part of a composite layer",
                         i..i + l.len(),
                     ));
                 }
+
+                layer.composite_part = true;
+
                 i += l.len() + 1;
             }
+            if self.config.composite_start_index == 0 {
+                self.config.composite_start_index = self.config.next_layer;
+            }
+            self.config.new_layer(name, 0);
         }
 
         while let Some(pos) = self.skip_whitespace() {
@@ -968,6 +981,7 @@ impl<'source> KeyboardConfig<'source> {
             next_layer: DEFAULT_LAYERS.len() as u16,
             row_count: 0,
             col_count: 0,
+            composite_start_index: 0,
         }
     }
 
@@ -1349,7 +1363,7 @@ impl<'source> KeyboardConfig<'source> {
                             s..i,
                         ));
                     }
-                } else {
+                } else if !name.contains('+') {
                     self.new_layer(name, code);
                 }
             }
@@ -1379,6 +1393,7 @@ impl ConfigLayer {
             codes: Default::default(),
             index,
             suffix,
+            composite_part: false,
         }
     }
 
