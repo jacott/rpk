@@ -155,8 +155,11 @@ mod test {
     macro_rules! error {
     ($($arg:expr),*) => {{
         extern crate std;
-        std::eprintln!("\nERROR: at ./{}:{}:{}:\n{}", file!(), line!(), column!(),
-            std::format!($($arg,)*))
+        if cfg!(test) {
+            panic!("{}", std::format!($($arg,)*));
+        } else {
+            std::eprintln!("\nERROR: at ./{}:{}:{}:\n{}", file!(), line!(), column!(), std::format!($($arg,)*));
+        }
     }};
 }
 }

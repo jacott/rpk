@@ -1595,6 +1595,34 @@ c = macro(hold(aab) release(ba))
 }
 
 #[test]
+fn composite_layer() {
+    setup!(
+        t,
+        press,
+        assert_read,
+        r#"
+[matrix:2x3]
+
+0x00 = a b c
+0x10 = e f g
+
+[shift+control]
+
+a = 1
+"#,
+        {
+            t.push_layer(0);
+            t.push_layer(1);
+            assert_read!(KEY_DOWN, "leftcontrol");
+            assert_read!(KEY_DOWN, "leftshift");
+
+            press!(0, 0, TAP);
+            assert_read!(TAP "1");
+        }
+    );
+}
+
+#[test]
 fn layer_with_mods() {
     setup!(
         press,

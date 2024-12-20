@@ -1,5 +1,5 @@
 use rpk_common::{
-    globals,
+    globals::{self, COMPOSITE_BIT, COMPOSITE_PART_BIT},
     keycodes::key_range::{self, LAYER_MAX, LAYER_MIN, MACROS_MAX, MACROS_MIN},
     mouse::{MouseAnalogSetting, MouseConfig},
     PROTOCOL_VERSION,
@@ -17,10 +17,13 @@ pub struct Manager<const ROWS: usize, const COLS: usize, const CODE_SIZE: usize>
     mouse_profiles: [MouseConfig; 3],
     layout_bottom: usize,
     layout_top: usize,
+    composite_start_index: usize,
     macro_dir_base: usize,
     memo_bottom: usize,
     memo_top: usize,
     macro_stack: usize,
+    active_comp_count: u32,
+    active_comp_part_layers: u32,
 }
 
 #[derive(Debug)]
@@ -52,7 +55,8 @@ pub struct Layer<'l, const ROWS: usize, const COLS: usize>(&'l [u16]);
 
 impl<const ROWS: usize, const COLS: usize> Layer<'_, ROWS, COLS> {
     pub fn get(&self, row: usize, column: usize) -> u16 {
-        let slice = &self.0[1..];
+        let start = if self.0[0] & COMPOSITE_BIT == 0 { 1 } else { 3 };
+        let slice = &self.0[start..];
         if slice.len() == ROWS * COLS {
             *slice.get(row * COLS + column).unwrap_or(&0u16)
         } else {
@@ -62,6 +66,14 @@ impl<const ROWS: usize, const COLS: usize> Layer<'_, ROWS, COLS> {
 
     pub fn modifiers(&self) -> u8 {
         self.0[0] as u8
+    }
+
+    fn is_composite_part(&self) -> bool {
+        self.0[0] & COMPOSITE_PART_BIT != 0
+    }
+
+    fn composite_bitmap(&self) -> u32 {
+        self.0[1] as u32 | ((self.0[2] as u32) << 16)
     }
 }
 
@@ -79,10 +91,13 @@ impl<const ROWS: usize, const COLS: usize, const LAYOUT_MAX: usize> Default
             ],
             layout_bottom: 0,
             layout_top: 0,
+            composite_start_index: 0,
             macro_dir_base: 0,
             memo_bottom: 0,
             memo_top: 0,
             macro_stack: 0,
+            active_comp_count: 0,
+            active_comp_part_layers: 0,
         }
     }
 }
@@ -113,10 +128,13 @@ impl<const ROWS: usize, const COLS: usize, const LAYOUT_MAX: usize>
             }
         }
 
-        let layer_count = iter.next().ok_or(LoadError::Corrupt)?;
+        let layer_info = iter.next().ok_or(LoadError::Corrupt)?;
+        let layer_count = layer_info & 0xff;
         if layer_count < 6 {
             return Err(LoadError::Corrupt);
         }
+        self.composite_start_index = layer_count as usize;
+        let layer_count = (layer_info >> 8) + layer_count;
         let macros_count = iter.next().ok_or(LoadError::Corrupt)?;
         let mut globals_count = iter.next().ok_or(LoadError::Corrupt)?;
 
@@ -273,53 +291,130 @@ impl<const ROWS: usize, const COLS: usize, const LAYOUT_MAX: usize>
         let s = self.mapping[idx] as usize;
         let e = self.mapping[idx + 1] as usize;
         // todo use first macro rather than mapping.len
+
         if e < s || e > self.mapping.len() {
             crate::error!("corrupt layout: layer address out of range {}..{}", s, e);
             return None;
         }
 
-        self.mapping
-            .get(s..(self.mapping[idx + 1] as usize))
-            .map(Layer)
+        self.mapping.get(s..e).map(Layer)
     }
 
     pub fn macro_stack(&self) -> usize {
         self.macro_stack
     }
 
-    pub fn set_layout(&mut self, n: u16) {
-        self.mapping[self.layout_bottom] = n;
+    pub fn set_layout(&mut self, layer_num: u16) {
+        self.mapping[self.layout_bottom] = layer_num;
     }
 
-    pub fn push_layer(&mut self, n: u16) -> bool {
+    pub fn push_layer(&mut self, layer_num: u16) -> bool {
         if self.layout_top + 1 >= self.macro_stack {
             return false;
         }
-        self.mapping[self.layout_top] = n;
+        let Some(l) = self.get_layer(layer_num & 0xff) else {
+            return false;
+        };
+        let is_composite_part = l.is_composite_part();
+
+        self.mapping[self.layout_top] = layer_num;
         self.layout_top += 1;
+        if is_composite_part {
+            let bit = 1 << layer_num;
+            if self.active_comp_part_layers & bit == 0 {
+                let old = self.active_comp_part_layers;
+                self.active_comp_part_layers |= bit;
+                self.active_comp_count += 1;
+
+                if self.active_comp_count > 1 {
+                    for i in self.composite_start_index..self.macro_dir_base {
+                        let l =
+                            Layer::<'_, ROWS, COLS>(&self.mapping[(self.mapping[i] as usize)..]);
+                        let bm = l.composite_bitmap();
+                        if bm & self.active_comp_part_layers == bm && bm & old != bm {
+                            if self.layout_top + 1 >= self.macro_stack {
+                                return false;
+                            }
+
+                            self.mapping[self.layout_top] = i as u16;
+                            self.layout_top += 1;
+                        }
+                        if bm.count_ones() > self.active_comp_count {
+                            break;
+                        }
+                    }
+                }
+            }
+        }
         true
     }
 
-    pub fn push_right_mod_layer(&mut self, n: u16) -> bool {
-        self.push_layer(n | RIGHT_MOD)
+    pub fn push_right_mod_layer(&mut self, layer_num: u16) -> bool {
+        self.push_layer(layer_num | RIGHT_MOD)
     }
 
-    pub fn pop_layer(&mut self, n: u16) -> bool {
-        if let Some((i, _)) = self.mapping[self.layout_bottom..self.layout_top]
+    pub fn find_active_layer(&self, layer_num: u16, search_top: usize) -> Option<usize> {
+        self.mapping[self.layout_bottom..search_top]
             .iter()
             .copied()
             .enumerate()
-            .rfind(|(_, v)| *v & 0xff == n)
-        {
-            self.mapping.copy_within(
-                self.layout_bottom + i + 1..self.layout_top,
-                self.layout_bottom + i,
-            );
+            .rfind(|(_, v)| *v & 0xff == layer_num)
+            .map(|r| r.0)
+    }
 
-            self.layout_top -= 1;
-            return true;
+    pub fn pop_layer(&mut self, layer_num: u16) -> bool {
+        let Some(stack_pos) = self.find_active_layer(layer_num, self.layout_top) else {
+            return false;
+        };
+        let Some(l) = self.get_layer(layer_num) else {
+            return false;
+        };
+        if l.is_composite_part() {
+            let bit = 1 << layer_num;
+            if self.active_comp_part_layers & bit != 0
+                && self
+                    .find_active_layer(layer_num, self.layout_bottom + stack_pos)
+                    .is_none()
+            {
+                let old = self.active_comp_part_layers;
+                self.active_comp_part_layers &= !bit;
+                self.active_comp_count -= 1;
+                if self.active_comp_count > 0 {
+                    let mut search_top = self.layout_top;
+                    let search_bottom = self.layout_bottom + stack_pos + 1;
+                    while let Some(li) = self.mapping[search_bottom..search_top]
+                        .iter()
+                        .copied()
+                        .enumerate()
+                        .rfind(|(_i, v)| {
+                            let v = *v & 0xff;
+                            if v < self.composite_start_index as u16 {
+                                return false;
+                            }
+                            let Some(l) = self.get_layer(v) else {
+                                return false;
+                            };
+                            let bm = l.composite_bitmap();
+                            bm & old == bm && bm & self.active_comp_part_layers != bm
+                        })
+                        .map(|r| r.0)
+                    {
+                        self.mapping.copy_within(
+                            search_bottom + li + 1..self.layout_top,
+                            search_bottom + li,
+                        );
+                        self.layout_top -= 1;
+                        search_top = search_bottom + li;
+                    }
+                }
+            }
         }
-        false
+        self.mapping.copy_within(
+            self.layout_bottom + stack_pos + 1..self.layout_top,
+            self.layout_bottom + stack_pos,
+        );
+        self.layout_top -= 1;
+        true
     }
 
     pub(crate) fn macro_code(&self, location: usize) -> u16 {

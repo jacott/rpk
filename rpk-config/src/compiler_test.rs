@@ -440,7 +440,7 @@ a = z
 "#;
 
     let config = pretty_compile(src).unwrap();
-    assert_eq!(config.composite_start_index, 0);
+    assert_eq!(config.composites.len(), 0);
 
     let layer = config.layers.get("my_layer").unwrap();
 
@@ -455,20 +455,42 @@ fn composite_layer() {
 0x00 = a b
 0x10 = c d
 
-[shift+alt]
+[alt+control+gui]
+d = space
 
+[control+gui+alt] # order doesn't matter
+b = 2
+
+[shift+alt]
 a = z
 "#;
 
     let config = pretty_compile(src).unwrap();
 
-    assert_eq!(config.layers.len(), 7);
-    assert_eq!(config.composite_start_index, 6);
+    assert_eq!(config.layers.len(), 6);
+    assert_eq!(config.composites.len(), 2);
 
-    let layer = config.layers.get("shift+alt").unwrap();
+    let layer = config.composites.get(&0b0110).unwrap();
 
+    assert_eq!(layer.index, 0);
     assert_eq!(layer.suffix, 0);
     assert_eq!(layer.code_at(0), 29);
+
+    let layer = config.composites.get(&0b1101).unwrap(); // alt+control+gui
+
+    assert_eq!(layer.index, 0);
+    assert_eq!(layer.code_at(1), 31);
+    assert_eq!(layer.code_at(0x0101), 44);
+
+    let bytes = config.serialize();
+
+    assert_eq!(
+        &bytes,
+        &[
+            1, 514, 518, 0, 0, 9, 10, 11, 12, 13, 14, 19, 24, 31, 513, 514, 516, 520, 64, 0, 4, 5,
+            6, 7, 256, 6, 0, 0, 29, 256, 13, 0, 0, 31, 0, 44
+        ]
+    );
 }
 
 #[test]
@@ -489,8 +511,8 @@ fn composite_part_index_after_31() {
     let src = format!("{matrix}{}]\nb = 2\n{layers}", cl.as_str());
     let config = pretty_compile(src.as_str()).unwrap();
 
-    assert_eq!(config.layers.len(), 33);
-    assert_eq!(config.composite_start_index, 32);
+    assert_eq!(config.layers.len(), 32);
+    assert_eq!(config.composites.len(), 1);
 
     let src = format!(
         "{matrix}[layer3+shift]\nc = z\n{}]\nb = 2\n{layers}",
@@ -499,10 +521,8 @@ fn composite_part_index_after_31() {
 
     let config = pretty_compile(src.as_str()).unwrap();
 
-    assert!(config.get_layer_index("layer3+shift").unwrap() > 31);
-
-    assert_eq!(config.layers.len(), 34);
-    assert_eq!(config.composite_start_index, 32);
+    assert_eq!(config.layers.len(), 32);
+    assert_eq!(config.composites.len(), 2);
 
     layers += "[layer26]\na = 1\n";
     cl += "+layer26";

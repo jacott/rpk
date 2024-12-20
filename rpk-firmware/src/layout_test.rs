@@ -8,13 +8,13 @@ macro_rules! assert_kpm {
         assert_kpm!($a,$e,0);
     };
     ($a:expr,$e:expr,$m:expr) => {
-        assert_kpm!($a,c rpk_config::keycodes::key_code($e).unwrap(), $m);
+        assert_kpm!($a,c rpk_config::keycodes::key_code($e).expect("Keycode not found"), $m);
     };
     ($a:expr,c $e:expr) => {
         assert_kpm!($a, c $e, 0);
     };
     ($a:expr,c $e:expr,$m:expr) => {
-        assert_eq!($a.unwrap(), KeyPlusMod::new($e, $m));
+        assert_eq!($a.expect("Found None"), KeyPlusMod::new($e, $m));
     };
 }
 
@@ -337,6 +337,69 @@ e = noop
 
     assert_kpm!(mgr.find_code(1, 3), "h");
     assert_kpm!(mgr.find_code(1, 1), "4");
+    assert_kpm!(mgr.find_code(0, 0), "a");
+}
+
+#[test]
+fn composite_layers() {
+    let codes = rpk_config::text_to_binary(
+        r#"
+[matrix:2x2]
+0x00 = a b
+0x10 = c d
+
+[alt+control+gui]
+a = 1 2
+c = 3 4
+
+[shift+alt]
+a = z
+
+[nav]
+a = space
+
+[nav+alt]
+a = left
+"#,
+    )
+    .unwrap();
+
+    let mut mgr = Manager::<2, 2, 100>::default();
+    mgr.load(codes).unwrap();
+    assert_eq!(mgr.composite_start_index, 7);
+
+    mgr.push_layer(2);
+    assert_kpm!(mgr.find_code(0, 0), "a");
+
+    mgr.push_layer(1);
+    assert_kpm!(mgr.find_code(0, 0), "z");
+
+    mgr.push_layer(2);
+
+    mgr.pop_layer(2);
+    assert_kpm!(mgr.find_code(0, 0), "z");
+
+    mgr.pop_layer(1);
+    mgr.push_layer(0);
+    assert_kpm!(mgr.find_code(1, 1), "d");
+    assert_kpm!(mgr.find_code(0, 0), "a");
+    mgr.push_layer(3);
+
+    assert_kpm!(mgr.find_code(1, 1), "4");
+
+    mgr.push_layer(1);
+    assert_kpm!(mgr.find_code(0, 0), "z");
+
+    mgr.pop_layer(0);
+    assert_kpm!(mgr.find_code(0, 0), "z");
+
+    mgr.push_layer(6);
+    assert_kpm!(mgr.find_code(0, 0), "left");
+
+    mgr.pop_layer(2);
+    assert_kpm!(mgr.find_code(0, 0), "space");
+
+    mgr.pop_layer(6);
     assert_kpm!(mgr.find_code(0, 0), "a");
 }
 

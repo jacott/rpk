@@ -1,6 +1,7 @@
 use std::{collections::HashMap, ops::Range, path::PathBuf, str::CharIndices};
 
 use rpk_common::{
+    globals::{COMPOSITE_BIT, COMPOSITE_PART_BIT},
     keycodes::{
         key_range::{self, BASIC_0, BASIC_1, BASIC_A},
         macro_types,
@@ -128,10 +129,10 @@ pub struct KeyboardConfig<'source> {
     pub firmware_map: HashMap<&'source str, SourceRange>,
     pub matrix_map: HashMap<String, Vec<u16>>,
     layers: HashMap<String, ConfigLayer>,
+    composites: HashMap<u32, ConfigLayer>,
     macros_names: HashMap<Vec<u16>, u16>,
     macros: Vec<Macro>,
     next_layer: u16,
-    composite_start_index: u16,
     pub row_count: u8,
     pub col_count: u8,
 }
@@ -364,7 +365,7 @@ impl<'source> Parser<'source> {
                         }
                         self.config.assign_position_name(pos, value);
                         if let Some(code) = keycodes::key_code(value) {
-                            self.config.assign_one_layer_code("main", pos, code);
+                            self.config.assign_layer_code("main", pos, code);
                         }
                         pos += 1;
                         right = self.next_assignment_value();
@@ -419,29 +420,17 @@ impl<'source> Parser<'source> {
     fn parse_layer(&mut self, name_range: SourceRange) -> Result<()> {
         let name = self.name(&name_range);
 
-        let mut i = name_range.start;
-        if name.contains('+') {
-            for l in name.split('+') {
-                let Some(layer) = self.config.layers.get_mut(l) else {
-                    self.get_layer_index(i..i + l.len())?;
-                    unreachable!();
-                };
-                if layer.index > 31 {
-                    return Err(error_span(
-                        "Only 32 layers can be used as part of a composite layer",
-                        i..i + l.len(),
-                    ));
-                }
-
-                layer.composite_part = true;
-
-                i += l.len() + 1;
-            }
-            if self.config.composite_start_index == 0 {
-                self.config.composite_start_index = self.config.next_layer;
-            }
-            self.config.new_layer(name, 0);
-        }
+        let composite = if name.contains('+') {
+            self.config.ensure_composite(name).map_err(|e| {
+                let span = e.span.unwrap_or(0..name.len());
+                error_span(
+                    e.message,
+                    span.start + name_range.start..span.end + name_range.start,
+                )
+            })?
+        } else {
+            0
+        };
 
         while let Some(pos) = self.skip_whitespace() {
             if pos.1 == '[' {
@@ -478,7 +467,11 @@ impl<'source> Parser<'source> {
                             }
 
                             let code = self.read_action(value.to_owned())?;
-                            self.config.assign_one_layer_code(name, keypos, code);
+                            if composite == 0 {
+                                self.config.assign_layer_code(name, keypos, code);
+                            } else {
+                                self.config.assign_composite_code(composite, keypos, code);
+                            }
 
                             right = self.next_assignment_value();
                             keypos += 1;
@@ -486,8 +479,12 @@ impl<'source> Parser<'source> {
                     } else if let Some(positions) = alias_value {
                         let positions = positions.clone();
                         let code = self.read_action(right)?;
-                        for pos in positions {
-                            self.config.assign_one_layer_code(name, pos, code);
+                        for keypos in positions {
+                            if composite == 0 {
+                                self.config.assign_layer_code(name, keypos, code);
+                            } else {
+                                self.config.assign_composite_code(composite, keypos, code);
+                            }
                         }
                         self.assert_no_more_values(TOO_MANY_MULTI_ALIAS_RHS)?;
                     } else {
@@ -976,12 +973,12 @@ impl<'source> KeyboardConfig<'source> {
             firmware_map: Default::default(),
             matrix_map: Default::default(),
             layers,
+            composites: Default::default(),
             macros_names: Default::default(),
             macros: Default::default(),
             next_layer: DEFAULT_LAYERS.len() as u16,
             row_count: 0,
             col_count: 0,
-            composite_start_index: 0,
         }
     }
 
@@ -1029,32 +1026,51 @@ impl<'source> KeyboardConfig<'source> {
 
     pub fn serialize(&self) -> Vec<u16> {
         let layer_count = self.layers.len();
+        let composite_count = self.composites.len();
         let macros_count = self.macros.len();
 
         let globals = self.serialize_globals();
 
         let layer_base = 5 + globals.len();
-        let mut out = vec![0; 1 + layer_count + macros_count + layer_base];
+        let mut out = vec![0; 1 + layer_count + composite_count + macros_count + layer_base];
 
         out[0] = PROTOCOL_VERSION.to_le();
         out[1] = ((self.col_count as u16) | ((self.row_count as u16) << 8)).to_le();
-        out[2] = (layer_count as u16).to_le();
+        out[2] = (layer_count as u16 | ((self.composites.len() as u16) << 8)).to_le();
         out[3] = (macros_count as u16).to_le();
         out[4] = (globals.len() as u16).to_le();
 
         out[5..layer_base].copy_from_slice(globals.as_slice());
 
         let mut layers = self.layers.values().collect::<Vec<_>>();
-        layers.sort_by(|a, b| Ord::cmp(&a.index, &b.index));
+        layers.sort_by_key(|a| a.index);
         for (i, mut l) in layers
             .iter()
-            .map(|l| l.serialize(self.row_count as usize, self.col_count as usize))
+            .map(|l| l.serialize(self.row_count as usize, self.col_count as usize, 0))
             .enumerate()
         {
             out[layer_base + i] = ((out.len() - layer_base) as u16).to_le();
             out.append(&mut l);
         }
-        let macro_base = layer_base + layer_count;
+        let composite_base = layer_base + layer_count;
+        let mut comps = self.composites.keys().collect::<Vec<_>>();
+        comps.sort();
+        for (i, mut l) in comps
+            .iter()
+            .copied()
+            .map(|l| {
+                self.composites.get(l).unwrap().serialize(
+                    self.row_count as usize,
+                    self.col_count as usize,
+                    *l,
+                )
+            })
+            .enumerate()
+        {
+            out[composite_base + i] = ((out.len() - layer_base) as u16).to_le();
+            out.append(&mut l);
+        }
+        let macro_base = composite_base + composite_count;
 
         for (i, mut m) in self.macros.iter().map(|m| m.serialize()).enumerate() {
             out[macro_base + i] = ((out.len() - layer_base) as u16).to_le();
@@ -1233,8 +1249,12 @@ impl<'source> KeyboardConfig<'source> {
         0
     }
 
-    fn assign_one_layer_code(&mut self, name: &str, pos: u16, code: u16) {
+    fn assign_layer_code(&mut self, name: &str, pos: u16, code: u16) {
         self.layers.get_mut(name).unwrap().set_code(pos, code);
+    }
+
+    fn assign_composite_code(&mut self, key: u32, pos: u16, code: u16) {
+        self.composites.get_mut(&key).unwrap().set_code(pos, code);
     }
 
     fn new_layer(&mut self, name: &str, code: u8) {
@@ -1385,6 +1405,35 @@ impl<'source> KeyboardConfig<'source> {
     pub fn firmware_get_str(&self, arg: &str) -> Option<&str> {
         self.firmware_get(arg).map(|v| self.text(&v))
     }
+
+    fn ensure_composite(&mut self, name: &str) -> Result<u32> {
+        let mut composite = 0;
+        let mut i = 0;
+        for l in name.split('+') {
+            let Some(layer) = self.layers.get_mut(l) else {
+                return Err(error_span(
+                    format!("Unknown layer name {l}"),
+                    i..i + l.len(),
+                ));
+            };
+            if layer.index > 31 {
+                return Err(error_span(
+                    "Only 32 layers can be used as part of a composite layer",
+                    i..i + l.len(),
+                ));
+            }
+
+            layer.composite_part = true;
+            composite |= 1 << layer.index as usize;
+
+            i += l.len() + 1;
+        }
+
+        self.composites
+            .entry(composite)
+            .or_insert_with(|| ConfigLayer::new(0, 0));
+        Ok(composite)
+    }
 }
 
 impl ConfigLayer {
@@ -1424,24 +1473,37 @@ impl ConfigLayer {
         }
     }
 
-    fn serialize(&self, row_count: usize, col_count: usize) -> Vec<u16> {
-        let mut bin = vec![0];
-        bin[0] = (self.suffix as u16).to_le();
+    fn serialize(&self, row_count: usize, col_count: usize, composite: u32) -> Vec<u16> {
+        let mode = if self.composite_part {
+            COMPOSITE_PART_BIT
+        } else if composite != 0 {
+            COMPOSITE_BIT
+        } else {
+            0
+        };
+
+        let mut bin = vec![(self.suffix as u16 | mode).to_le()];
+        if composite != 0 {
+            bin.push((composite & 0xffff) as u16);
+            bin.push((composite >> 16) as u16);
+        };
+
+        let start = bin.len();
+
         if self.codes.len() * 3 > row_count * col_count {
             // normal array
-            bin.resize(1 + row_count * col_count, 0);
+            bin.resize(start + row_count * col_count, 0);
             for (k, v) in self.codes.iter() {
                 let i = (k >> 8) as usize * col_count + (k & 0xff) as usize;
-                let _ = (k, v, i, k >> 8, (k & 0xff));
-                bin[i + 1] = v.to_le();
+                bin[i + start] = v.to_le();
             }
         } else {
-            bin.resize(1 + self.codes.len() * 2, 0);
+            bin.resize(start + self.codes.len() * 2, 0);
             let mut codes = self.codes.iter().collect::<Vec<_>>();
             codes.sort_by_key(|k| k.0);
             for (i, (k, v)) in codes.into_iter().enumerate() {
-                bin[i * 2 + 1] = k.to_le();
-                bin[i * 2 + 2] = v.to_le();
+                bin[i * 2 + start] = k.to_le();
+                bin[i * 2 + start + 1] = v.to_le();
             }
             // sparse array
         }

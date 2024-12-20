@@ -16,3 +16,6 @@ pub const DEBOUNCE_SETTLE_TIME_DEFAULT: u16 = 200; // 20.0 ms
 pub const MOUSE_PROFILE1: u16 = 3;
 pub const MOUSE_PROFILE2: u16 = 4;
 pub const MOUSE_PROFILE3: u16 = 5;
+
+pub const COMPOSITE_BIT: u16 = 0x0100;
+pub const COMPOSITE_PART_BIT: u16 = 0x0200;
