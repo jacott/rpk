@@ -468,6 +468,41 @@ a = z
 }
 
 #[test]
+fn composite_part_index_after_31() {
+    let mut layers = String::from(
+        r#"
+[matrix:2x2]
+0x00 = a b
+0x10 = c d
+"#,
+    );
+    let mut cl = String::from("");
+    for i in 0..26 {
+        layers += format!("[layer{i}]\na = 1\n").as_str();
+        cl += format!("{}layer{i}", if i == 0 { "[" } else { "+" }).as_str();
+    }
+
+    let src = format!("{layers}{}]\na = 2\n", cl.as_str());
+
+    let config = pretty_compile(src.as_str()).unwrap();
+
+    assert_eq!(config.layers.len(), 33);
+
+    layers += "[layer26]\na = 1\n";
+    cl += "+layer26";
+
+    let src = format!("{layers}{}]\na = 2\n", cl.as_str());
+
+    let config = test_compile(src.as_str()).err().unwrap();
+
+    assert_eq!(
+        config.message,
+        "Only the first 32 layers can be used as part of a composite layer"
+    );
+    assert_eq!(config.span.unwrap(), 657..664);
+}
+
+#[test]
 fn missing_composite_layer() {
     let src = r#"
 [matrix:2x2]

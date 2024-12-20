@@ -418,9 +418,16 @@ impl<'source> Parser<'source> {
         let name = self.name(&name_range);
 
         let mut i = name_range.start;
-        for l in name.split('+') {
-            let _ = self.get_layer_index(i..i + l.len())?;
-            i += l.len() + 1;
+        if name.contains('+') {
+            for l in name.split('+') {
+                if self.get_layer_index(i..i + l.len())? > 31 {
+                    return Err(error_span(
+                        "Only the first 32 layers can be used as part of a composite layer",
+                        i..i + l.len(),
+                    ));
+                }
+                i += l.len() + 1;
+            }
         }
 
         while let Some(pos) = self.skip_whitespace() {
