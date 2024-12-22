@@ -799,15 +799,13 @@ impl<
                 if changed != 0 {
                     if pending {
                         self.pending_up_modifiers |= modifiers;
+                    } else if changed == 1 {
+                        self.report(KeyEvent::basic(
+                            key_range::MODIFIER_MIN as u8 + i as u8,
+                            false,
+                        ));
                     } else {
-                        if changed == 1 {
-                            self.report(KeyEvent::basic(
-                                key_range::MODIFIER_MIN as u8 + i as u8,
-                                false,
-                            ));
-                        } else {
-                            self.report(KeyEvent::modifiers(modifiers, false, pending));
-                        }
+                        self.report(KeyEvent::modifiers(modifiers, false, pending));
                     }
                 }
                 return;
@@ -834,15 +832,13 @@ impl<
                 if changed != 0 {
                     if pending {
                         self.pending_down_modifiers |= modifiers;
+                    } else if changed == 1 {
+                        self.report(KeyEvent::basic(
+                            key_range::MODIFIER_MIN as u8 + i as u8,
+                            true,
+                        ));
                     } else {
-                        if changed == 1 {
-                            self.report(KeyEvent::basic(
-                                key_range::MODIFIER_MIN as u8 + i as u8,
-                                true,
-                            ));
-                        } else {
-                            self.report(KeyEvent::modifiers(modifiers, true, pending));
-                        }
+                        self.report(KeyEvent::modifiers(modifiers, true, pending));
                     }
                 }
                 return;
