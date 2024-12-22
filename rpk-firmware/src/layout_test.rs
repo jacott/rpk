@@ -372,12 +372,12 @@ a = left
     assert_kpm!(mgr.find_code(0, 0), "a");
 
     mgr.push_layer(1);
-    assert_kpm!(mgr.find_code(0, 0), "z");
+    assert_kpm!(mgr.find_code(0, 0), "z", 6);
 
     mgr.push_layer(2);
 
     mgr.pop_layer(2);
-    assert_kpm!(mgr.find_code(0, 0), "z");
+    assert_kpm!(mgr.find_code(0, 0), "z", 6);
 
     mgr.pop_layer(1);
     mgr.push_layer(0);
@@ -385,16 +385,16 @@ a = left
     assert_kpm!(mgr.find_code(0, 0), "a");
     mgr.push_layer(3);
 
-    assert_kpm!(mgr.find_code(1, 1), "4");
+    assert_kpm!(mgr.find_code(1, 1), "4", 13);
 
     mgr.push_layer(1);
-    assert_kpm!(mgr.find_code(0, 0), "z");
+    assert_kpm!(mgr.find_code(0, 0), "z", 6);
 
     mgr.pop_layer(0);
-    assert_kpm!(mgr.find_code(0, 0), "z");
+    assert_kpm!(mgr.find_code(0, 0), "z", 6);
 
     mgr.push_layer(6);
-    assert_kpm!(mgr.find_code(0, 0), "left");
+    assert_kpm!(mgr.find_code(0, 0), "left", 4);
 
     mgr.pop_layer(2);
     assert_kpm!(mgr.find_code(0, 0), "space");
@@ -421,4 +421,15 @@ fn search_code_bug() {
     assert_eq!(search_code(&codes, 3, 3), 4103);
     assert_eq!(search_code(&codes, 3, 3), 4103);
     assert_eq!(search_code(&codes, 3, 2), 4102);
+
+    let codes = [
+        258, 4096, 259, 4097, 260, 4098, 514, 4099, 515, 4100, 516, 4101, 770, 4102, 771, 4103,
+        772, 4104,
+    ];
+
+    // This test case should pass, and it does
+    assert_eq!(search_code(&codes, 2, 2), 4099); // Searches for key 514
+
+    // Let's add a test where the incorrect middle calculation will cause it to fail
+    assert_eq!(search_code(&codes, 2, 3), 4100); // Searches for key 515 - This WILL FAIL
 }

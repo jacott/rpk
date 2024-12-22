@@ -473,7 +473,7 @@ a = z
     let layer = config.composites.get(&0b0110).unwrap();
 
     assert_eq!(layer.index, 0);
-    assert_eq!(layer.suffix, 0);
+    assert_eq!(layer.suffix, 6);
     assert_eq!(layer.code_at(0), 29);
 
     let layer = config.composites.get(&0b1101).unwrap(); // alt+control+gui
@@ -481,6 +481,7 @@ a = z
     assert_eq!(layer.index, 0);
     assert_eq!(layer.code_at(1), 31);
     assert_eq!(layer.code_at(0x0101), 44);
+    assert_eq!(layer.suffix, 13);
 
     let bytes = config.serialize();
 
@@ -488,7 +489,7 @@ a = z
         &bytes,
         &[
             1, 514, 518, 0, 0, 9, 10, 11, 12, 13, 14, 19, 24, 31, 513, 514, 516, 520, 64, 0, 4, 5,
-            6, 7, 256, 6, 0, 0, 29, 256, 13, 0, 0, 31, 0, 44
+            6, 7, 262, 6, 0, 0, 29, 269, 13, 0, 0, 31, 0, 44
         ]
     );
 }

@@ -1617,7 +1617,9 @@ a = 1
             assert_read!(KEY_DOWN, "leftshift");
 
             press!(0, 0, TAP);
+            assert_read!(E PendingModifiers(3, false));
             assert_read!(TAP "1");
+            assert_read!(E Modifiers(3, true));
         }
     );
 }

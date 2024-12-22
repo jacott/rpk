@@ -1409,6 +1409,7 @@ impl<'source> KeyboardConfig<'source> {
     fn ensure_composite(&mut self, name: &str) -> Result<u32> {
         let mut composite = 0;
         let mut i = 0;
+        let mut suffix = 0;
         for l in name.split('+') {
             let Some(layer) = self.layers.get_mut(l) else {
                 return Err(error_span(
@@ -1424,6 +1425,7 @@ impl<'source> KeyboardConfig<'source> {
             }
 
             layer.composite_part = true;
+            suffix |= layer.suffix;
             composite |= 1 << layer.index as usize;
 
             i += l.len() + 1;
@@ -1431,7 +1433,7 @@ impl<'source> KeyboardConfig<'source> {
 
         self.composites
             .entry(composite)
-            .or_insert_with(|| ConfigLayer::new(0, 0));
+            .or_insert_with(|| ConfigLayer::new(0, suffix));
         Ok(composite)
     }
 }
