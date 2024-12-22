@@ -9,7 +9,7 @@ The current features of RPK include:
 
 - Text file configuration which can be uploaded instantly via the `rpk-config` companion program (no
   need to re-flash firmware).
-- 256 low cost layers (first 32 can be composite).
+- 256 low cost layers (first 32 can be parts in composite layers).
 - 4096 macros.
 - Sensible key overloading, oneshot layers and changeable base layout.
 - Modifiers are layers.

@@ -8,7 +8,7 @@ building firmware for your keyboard.
 
 - Text file configuration which can be uploaded instantly via the `rpk-config` companion program (no
   need to re-flash firmware).
-- 256 low cost layers (first 32 can be composite).
+- 256 low cost layers (first 32 can be parts in composite layers).
 - 4096 macros.
 - Sensible key overloading, oneshot layers and changeable base layout.
 - Modifiers are layers.
@@ -90,9 +90,13 @@ scanner_buffer_size = 32
 4                   = mouseleft mousedown mouseright
 1                   = mouse1    mouse2
 
-[shift] # control, shift, alt and meta (a.k.a super) correspond to the modifier keys
+[shift] # control, shift, alt and gui (a.k.a super) correspond to the modifier keys
 
-3                   = macro(hello space world) # taps out "hello world"
+7                   = macro(hello space world) # taps out "hello world"
+
+[shift+mouse] # composite mode actives when shift and mouse layers are active
+# chanel mouse acceleration profiles
+4                   = mouseaccel1 mouseaccel2 mouseaccel3
 ```
 
 # Planned future features

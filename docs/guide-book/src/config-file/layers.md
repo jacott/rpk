@@ -58,11 +58,11 @@ and each modifier is one of:
 * **C** - Left Control
 * **S** - Left Shift
 * **A** - Left Alt
-* **G** - Letf GUI (Meta)
+* **G** - Letf GUI (Super)
 * **RC** - Right Control
 * **RS** - Right Shift
 * **RA** - Right Alt (AltGr)
-* **RG** - Right GUI (Meta)
+* **RG** - Right GUI (Super)
 
 #### Example
 
