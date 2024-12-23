@@ -2,14 +2,14 @@ use std::collections::HashMap;
 
 use lazy_static::lazy_static;
 
-pub mod spec {
+pub(crate) mod spec {
     use rpk_common::{
         globals,
         mouse::{MouseAnalogSetting, MouseConfig},
     };
 
     #[derive(Clone, Copy, Debug)]
-    pub enum GlobalType {
+    pub(crate) enum GlobalType {
         Timeout {
             value: u16,
             max: u16,
@@ -23,25 +23,26 @@ pub mod spec {
     use crate::f32_to_u16;
 
     #[derive(Clone, Copy, Debug)]
-    pub struct GlobalProp {
-        pub index: u16,
-        pub spec: GlobalType,
+    pub(crate) struct GlobalProp {
+        pub(crate) index: u16,
+        pub(crate) spec: GlobalType,
     }
 
     impl GlobalProp {
-        pub fn new_default(name: &str) -> Result<GlobalProp, String> {
+        pub(crate) fn new_default(name: &str) -> Result<GlobalProp, String> {
             super::DEFAULTS
                 .get(name)
                 .ok_or_else(|| format!("Invalid global '{}'", name))
                 .copied()
         }
 
-        pub fn default_name(&self) -> Option<&'static str> {
+        #[cfg(test)]
+        pub(crate) fn default_name(&self) -> Option<&'static str> {
             super::INDEX_TO_NAME.get(self.index as usize).copied()
         }
 
         #[cfg(test)]
-        pub fn deserialize(data: &mut impl Iterator<Item = u16>) -> Option<Self> {
+        pub(crate) fn deserialize(data: &mut impl Iterator<Item = u16>) -> Option<Self> {
             let index = data.next()?;
             let name = super::INDEX_TO_NAME.get(index as usize).copied()?;
             let mut gp = GlobalProp::new_default(name).ok()?;
@@ -56,7 +57,7 @@ pub mod spec {
             Some(gp)
         }
 
-        pub fn serialize(self) -> Box<dyn Iterator<Item = u16>> {
+        pub(crate) fn serialize(self) -> Box<dyn Iterator<Item = u16>> {
             match self.spec {
                 Timeout { value, .. } => Box::new([self.index, value].into_iter()),
                 MouseProfile(MouseConfig { movement, scroll }) => Box::new(
@@ -97,7 +98,7 @@ pub mod spec {
         }
     }
 
-    pub fn mouse_to_binary(config: MouseAnalogSetting) -> impl Iterator<Item = u16> {
+    pub(crate) fn mouse_to_binary(config: MouseAnalogSetting) -> impl Iterator<Item = u16> {
         f32_to_u16(config.curve.0)
             .chain(f32_to_u16(config.curve.1))
             .chain(f32_to_u16(config.max_time))
@@ -161,7 +162,7 @@ pub mod spec {
 }
 
 lazy_static! {
-    pub static ref INDEX_TO_NAME: [&'static str; 6] = [
+    pub(crate) static ref INDEX_TO_NAME: [&'static str; 6] = [
         "dual_action_timeout",
         "dual_action_timeout2",
         "debounce_settle_time",
@@ -169,7 +170,7 @@ lazy_static! {
         "mouse_profile2",
         "mouse_profile3",
     ];
-    pub static ref DEFAULTS: HashMap<&'static str, spec::GlobalProp> = {
+    pub(crate) static ref DEFAULTS: HashMap<&'static str, spec::GlobalProp> = {
         let mut m = HashMap::new();
         m.insert("overload_tap_timeout", spec::GLOBALS[0]);
         for (k, v) in INDEX_TO_NAME.iter().zip(spec::GLOBALS.iter()) {

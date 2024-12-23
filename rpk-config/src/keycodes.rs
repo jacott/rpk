@@ -285,16 +285,16 @@ MouseAccel1 MouseAccel2 MouseAccel3
         };
 }
 
-pub const SHIFT_MOD: u8 = 2;
+pub(crate) const SHIFT_MOD: u8 = 2;
 
-pub fn unshifted_char_code(c: char) -> char {
+pub(crate) fn unshifted_char_code(c: char) -> char {
     match c {
         'A'..='Z' => c.to_ascii_lowercase(),
         c => *SHIFT_KEY_NAMES.get(&c).unwrap_or(&c),
     }
 }
 
-pub fn char_to_code(c: char) -> u16 {
+pub(crate) fn char_to_code(c: char) -> u16 {
     match c {
         'a'..='z' => ((c as u8) - b'a' + 4) as u16,
         '1'..='9' => ((c as u8) - b'1' + 30) as u16,
@@ -324,15 +324,15 @@ pub fn key_code(name: &str) -> Option<u16> {
     }
 }
 
-pub fn action_code(name: &str) -> Option<u16> {
+pub(crate) fn action_code(name: &str) -> Option<u16> {
     ACTION_NAMES.get(name).copied()
 }
 
-pub fn modifier_macro(_name: &str) -> Option<u16> {
+pub(crate) fn modifier_macro(_name: &str) -> Option<u16> {
     Some(key_range::MACROS_MIN)
 }
 
-pub fn modifiers_to_bit_map(text: &str) -> Option<u8> {
+pub(crate) fn modifiers_to_bit_map(text: &str) -> Option<u8> {
     if text.is_empty() {
         return Some(0);
     }
@@ -347,7 +347,7 @@ pub fn modifiers_to_bit_map(text: &str) -> Option<u8> {
     Some(bm)
 }
 
-pub fn modifiers_to_string(mut modifiers: u8) -> String {
+pub(crate) fn modifiers_to_string(mut modifiers: u8) -> String {
     let mut ans = String::new();
 
     for m in MODIFIER_BITS {

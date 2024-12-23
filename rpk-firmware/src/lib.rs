@@ -13,7 +13,7 @@ pub mod usb;
 #[macro_use]
 mod macros;
 
-pub const KEY_BITS_SIZE: usize = 32;
+pub(crate) const KEY_BITS_SIZE: usize = 32;
 
 fn add_bit<const SIZE: usize>(keys_down: &mut [u8], kc: u8) -> bool {
     let i = (kc >> 3) as usize;

@@ -37,7 +37,7 @@ struct SourceIter<'source> {
     len: usize,
 }
 impl<'source> SourceIter<'source> {
-    pub fn new(iter: CharIndices<'source>, len: usize) -> Self {
+    fn new(iter: CharIndices<'source>, len: usize) -> Self {
         Self {
             iter,
             current: (usize::MAX, '\0'),
@@ -124,21 +124,21 @@ fn invalid_section_char(c: char) -> bool {
 pub struct KeyboardConfig<'source> {
     pub path: PathBuf,
     pub source: &'source str,
-    pub global_map: HashMap<&'source str, GlobalProp>,
-    pub temp_map: HashMap<&'source str, u16>,
-    pub firmware_map: HashMap<&'source str, SourceRange>,
-    pub matrix_map: HashMap<String, Vec<u16>>,
+    global_map: HashMap<&'source str, GlobalProp>,
+    temp_map: HashMap<&'source str, u16>,
+    firmware_map: HashMap<&'source str, SourceRange>,
+    matrix_map: HashMap<String, Vec<u16>>,
     layers: HashMap<String, ConfigLayer>,
     composites: HashMap<u32, ConfigLayer>,
     macros_names: HashMap<Vec<u16>, u16>,
     macros: Vec<Macro>,
     next_layer: u16,
-    pub row_count: u8,
-    pub col_count: u8,
+    row_count: u8,
+    col_count: u8,
 }
 
 #[derive(Debug)]
-pub struct ConfigLayer {
+struct ConfigLayer {
     codes: HashMap<u16, u16>,
     index: u16,
     suffix: u8,
@@ -146,7 +146,7 @@ pub struct ConfigLayer {
 }
 
 #[derive(Debug, PartialEq)]
-pub enum Macro {
+enum Macro {
     Modifier { keycode: u16, modifiers: u8 },
     Tap(Vec<u16>),
     HoldRelease { hold: u16, release: u16 },
@@ -1083,7 +1083,7 @@ impl<'source> KeyboardConfig<'source> {
     }
 
     #[cfg(test)]
-    pub fn deserialize_globals(&mut self, data: &mut impl Iterator<Item = u16>) {
+    fn deserialize_globals(&mut self, data: &mut impl Iterator<Item = u16>) {
         while let Some(gp) = GlobalProp::deserialize(data) {
             if let Some(name) = gp.default_name() {
                 self.global_map.insert(name, gp);
@@ -1091,7 +1091,7 @@ impl<'source> KeyboardConfig<'source> {
         }
     }
 
-    pub fn serialize_globals(&self) -> Vec<u16> {
+    fn serialize_globals(&self) -> Vec<u16> {
         let mut out = self.global_map.values().collect::<Vec<_>>();
         out.sort_by(|a, b| Ord::cmp(&a.index, &b.index));
         out.into_iter().flat_map(|v| v.serialize()).collect()
@@ -1176,7 +1176,7 @@ impl<'source> KeyboardConfig<'source> {
         }
     }
 
-    pub fn key_position(&self, name: &str) -> Option<u16> {
+    fn key_position(&self, name: &str) -> Option<u16> {
         if let Some(name) = name.strip_prefix("0x") {
             if let Ok(pos) = u16::from_str_radix(name, 16) {
                 return Some(match name.len() {
@@ -1189,7 +1189,8 @@ impl<'source> KeyboardConfig<'source> {
         None
     }
 
-    pub fn global(&self, name: &str) -> Option<GlobalProp> {
+    #[cfg(test)]
+    fn global(&self, name: &str) -> Option<GlobalProp> {
         self.global_map.get(name).copied()
     }
 
@@ -1234,7 +1235,7 @@ impl<'source> KeyboardConfig<'source> {
         }
     }
 
-    pub fn get_aliases(&self, name: &str) -> Option<&Vec<u16>> {
+    fn get_aliases(&self, name: &str) -> Option<&Vec<u16>> {
         if let Some(code) = key_code(name) {
             self.matrix_map.get(format!("{code:04X}").as_str())
         } else {
@@ -1242,7 +1243,8 @@ impl<'source> KeyboardConfig<'source> {
         }
     }
 
-    pub fn code_at(&self, name: &str, rowcol: u16) -> u16 {
+    #[cfg(test)]
+    fn code_at(&self, name: &str, rowcol: u16) -> u16 {
         if let Some(layer) = self.layers.get(name) {
             return layer.code_at(rowcol);
         }
@@ -1512,7 +1514,8 @@ impl ConfigLayer {
         bin
     }
 
-    pub fn code_at(&self, pos: u16) -> u16 {
+    #[cfg(test)]
+    fn code_at(&self, pos: u16) -> u16 {
         *self.codes.get(&pos).unwrap_or(&0)
     }
 

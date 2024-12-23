@@ -18,11 +18,9 @@ use crate::{
     layout,
 };
 
-pub mod dual_action;
-pub mod macros;
-pub mod mouse;
-
-pub const MOUSE_KEY_BITS_SIZE: usize = 1; // 8 keys needs one byte
+pub(crate) mod dual_action;
+pub(crate) mod macros;
+pub(crate) mod mouse;
 
 #[derive(Copy, Clone, Debug)]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]

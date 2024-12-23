@@ -150,15 +150,15 @@ pub fn text_to_binary(source: &str) -> Result<Vec<u16>, ConfigError> {
     Ok(config.serialize())
 }
 
-pub fn f32_to_u16(n: f32) -> ByteToU16IntoIter<4> {
+pub(crate) fn f32_to_u16(n: f32) -> ByteToU16IntoIter<4> {
     bytes_to_u16(n.to_le_bytes())
 }
-pub fn bytes_to_u16<const N: usize>(bytes: [u8; N]) -> ByteToU16IntoIter<N> {
+pub(crate) fn bytes_to_u16<const N: usize>(bytes: [u8; N]) -> ByteToU16IntoIter<N> {
     ByteToU16IntoIter::new(bytes)
 }
-pub struct ByteToU16IntoIter<const N: usize>([u8; N], usize);
+pub(crate) struct ByteToU16IntoIter<const N: usize>([u8; N], usize);
 impl<const N: usize> ByteToU16IntoIter<N> {
-    pub fn new(bytes: [u8; N]) -> Self {
+    pub(crate) fn new(bytes: [u8; N]) -> Self {
         Self(bytes, 0)
     }
 }
