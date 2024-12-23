@@ -18,6 +18,35 @@ impl SequenceMode {
     }
 }
 
+#[derive(Debug, Default, PartialEq, Copy, Clone)]
+pub struct TapDance {
+    pub(crate) wait_until: u64,
+    pub(crate) location: u32,
+    pub(crate) tap_timeout: u16,
+    pub(crate) rem: u16,
+}
+impl TapDance {
+    pub(crate) fn is_running(&self) -> bool {
+        self.location != 0
+    }
+
+    pub(crate) fn clear(&mut self) {
+        self.location = 0;
+        self.wait_until = u64::MAX;
+    }
+
+    pub(crate) fn start(&mut self, tap_timeout: u16, location: u32, rem: u16) {
+        self.wait_until = u64::MAX;
+        self.location = location;
+        self.tap_timeout = tap_timeout;
+        self.rem = rem;
+    }
+
+    pub(crate) fn is_same(&self, location: u32, len: u16) -> bool {
+        self.location + self.rem as u32 == location + len as u32
+    }
+}
+
 #[derive(Debug, PartialEq, Copy, Clone)]
 pub enum Macro {
     Modifier(KeyPlusMod),
@@ -33,6 +62,7 @@ pub enum Macro {
         rem: u16,
     },
     Delay(u16),
+    TapDance(u32, u16),
 }
 impl Macro {
     pub fn decode(location: usize, data: Option<&[u16]>) -> Self {
@@ -48,6 +78,9 @@ impl Macro {
                         (u16::MAX, u16::MAX)
                     };
                     Macro::DualAction(data[1], data[2], t1, t2)
+                }
+                macro_types::TAPDANCE => {
+                    Macro::TapDance(location as u32 + 1, data.len() as u16 - 1)
                 }
                 macro_types::HOLD_RELEASE => Macro::HoldRelease {
                     hold: data[1],

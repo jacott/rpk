@@ -53,7 +53,7 @@ Turn on a layer if inactive; otherwise turn off the layer.
 
 Wait the given milliseconds before reporting the next keycode to the host computer.
 
-#### `dualaction(<hold-action>, <tap-action>[, <timeout1>[, <timeout2>]])`
+#### `dualaction(<hold-action>, <tap-action>[, <timeout1>[, <timeout2>]])` {#dualaction}
 
 Run the `<hold-acton>` when held, execute the `<tap-action>` on tap. `<timeout1>` and `<timeout2>`
 override `global.dual_action_timeout` and `global.dual_action_timeout2` respectively. A key is
@@ -64,6 +64,22 @@ other key events are detected.
 #### `overload(<layer>, <action>[, <timeout1>[, <timeout2>]])`
 
 Overload is an alias for `dualaction(layer(<layer>), <action>[, <timeout1>[, <timeout2>]])`.
+
+#### `tapdance(<hold-acton>, <tap-action>[,<hold-acton>, <tap-action>]...)` {#tapdance}
+
+Like `dualaction`[^note1] but optionally do other actions when tapped repeatedly faster than
+[`tapdance_tap_timeout`][global/tapdance]. If another key is pressed or released then that will also
+trigger the action after the counted taps. So _hold_ will do the first `hold-action`, _tap_ will do
+the first `tap-action`, _tap, hold_ will do the second `hold-action`, _tap tap_ will do the second
+`tap-action` and so on.
+
+Note: `tapdance` is not allowed within any [macros](#macros).
+
+#### `tapdancet(<tap-timeout>, <hold-acton>, <tap-action>[,<hold-acton>, <tap-action>]...)` {#tapdancet}
+
+Like [`tapdance`](#tapdance) but use `<tap-timeout>` instead of global
+[`tapdance_tap_timeout`][global/tapdance].
+
 
 ## Macros
 
@@ -109,7 +125,7 @@ Splitting into smaller tokens serves as an escaping mechainism: `macro(space)` i
 
 Modifier macros report the given modifiers before reporting the `keycode`. The modifiers are
 reported only when necessary. This makes them useful for keeping [layer modifiers][2] in place when
-defining keys on that layer.[^note1]
+defining keys on that layer.[^note2]
 
 #### Example
 
@@ -126,9 +142,14 @@ reported.
 
 ---
 
-[^note1]: Sometimes, when multiple modifiers are pressed, a modifier is released before the
+[^note1]: `tapdance` is less nuanced than `dual_action`; it doesn't interact with other keys;
+    any other key press resolves the tap dance at whatever place it is at.
+
+[^note2]: Sometimes, when multiple modifiers are pressed, a modifier is released before the
     modifier-macro is pressed. This would result in the modifier-macro not sending the down
     event. To help prevent this modifier-macros double set the modifiers.
 
+
 [1]: https://en.wikipedia.org/wiki/USB_human_interface_device_class
 [2]: layers.md#modifiers
+[global/tapdance]: global.md#tapdance_tap_timeout

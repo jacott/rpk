@@ -22,6 +22,8 @@ lazy_static! {
         m.insert("oneshot", key_range::ONESHOT);
         m.insert("overload", key_range::MACROS_MIN);
         m.insert("dualaction", key_range::MACROS_MIN);
+        m.insert("tapdance", key_range::MACROS_MIN);
+        m.insert("tapdancet", key_range::MACROS_MIN);
         m.insert("macro", key_range::MACROS_MIN);
         m.insert("hold", key_range::MACROS_MIN);
         m.insert("release", key_range::MACROS_MIN);
@@ -326,10 +328,6 @@ pub fn key_code(name: &str) -> Option<u16> {
 
 pub(crate) fn action_code(name: &str) -> Option<u16> {
     ACTION_NAMES.get(name).copied()
-}
-
-pub(crate) fn modifier_macro(_name: &str) -> Option<u16> {
-    Some(key_range::MACROS_MIN)
 }
 
 pub(crate) fn modifiers_to_bit_map(text: &str) -> Option<u8> {

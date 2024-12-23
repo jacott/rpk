@@ -118,7 +118,19 @@ pub(crate) mod spec {
         a.trim().parse::<f32>().map_err(|e| format!("{} {a}", e))
     }
 
-    pub(super) const GLOBALS: [GlobalProp; 6] = [
+    pub(super) const GLOBALS: [GlobalProp; 7] = [
+        GlobalProp {
+            index: globals::MOUSE_PROFILE1,
+            spec: GlobalType::MouseProfile(MouseConfig::slow()),
+        },
+        GlobalProp {
+            index: globals::MOUSE_PROFILE2,
+            spec: GlobalType::MouseProfile(MouseConfig::normal()),
+        },
+        GlobalProp {
+            index: globals::MOUSE_PROFILE3,
+            spec: GlobalType::MouseProfile(MouseConfig::fast()),
+        },
         GlobalProp {
             index: globals::DUAL_ACTION_TIMEOUT,
             spec: GlobalType::Timeout {
@@ -147,32 +159,30 @@ pub(crate) mod spec {
             },
         },
         GlobalProp {
-            index: globals::MOUSE_PROFILE1,
-            spec: GlobalType::MouseProfile(MouseConfig::slow()),
-        },
-        GlobalProp {
-            index: globals::MOUSE_PROFILE2,
-            spec: GlobalType::MouseProfile(MouseConfig::normal()),
-        },
-        GlobalProp {
-            index: globals::MOUSE_PROFILE3,
-            spec: GlobalType::MouseProfile(MouseConfig::fast()),
+            index: globals::TAPDANCE_TAP_TIMEOUT,
+            spec: GlobalType::Timeout {
+                value: globals::TAPDANCE_TAP_TIMEOUT_DEFAULT,
+                min: 0,
+                max: 5000,
+                dp: 0,
+            },
         },
     ];
 }
 
 lazy_static! {
-    pub(crate) static ref INDEX_TO_NAME: [&'static str; 6] = [
-        "dual_action_timeout",
-        "dual_action_timeout2",
-        "debounce_settle_time",
+    pub(crate) static ref INDEX_TO_NAME: [&'static str; spec::GLOBALS.len()] = [
         "mouse_profile1",
         "mouse_profile2",
         "mouse_profile3",
+        "dual_action_timeout",
+        "dual_action_timeout2",
+        "debounce_settle_time",
+        "tapdance_tap_timeout",
     ];
     pub(crate) static ref DEFAULTS: HashMap<&'static str, spec::GlobalProp> = {
         let mut m = HashMap::new();
-        m.insert("overload_tap_timeout", spec::GLOBALS[0]);
+        m.insert("overload_tap_timeout", spec::GLOBALS[3]);
         for (k, v) in INDEX_TO_NAME.iter().zip(spec::GLOBALS.iter()) {
             m.insert(k, *v);
         }

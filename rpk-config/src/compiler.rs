@@ -103,6 +103,7 @@ struct Parser<'source> {
     iter: SourceIter<'source>,
     config: KeyboardConfig<'source>,
     mark_idx: usize,
+    macro_sequence: bool,
 }
 
 fn non_ws_char(c: char) -> bool {
@@ -155,6 +156,7 @@ enum Macro {
     DualAction(u16, u16),
     TimedDualAction(u16, u16, u16, u16),
     Delay(u16),
+    TapDance(u16, Vec<u16>),
 }
 impl Macro {
     fn serialize(&self) -> Vec<u16> {
@@ -170,6 +172,11 @@ impl Macro {
             Macro::Release(ref seq) => binary_seq(macro_types::RELEASE, seq),
             Macro::DualAction(tap, hold) => {
                 vec![macro_types::DUAL_ACTION, tap, hold]
+            }
+            Macro::TapDance(ref timeout, ref actions) => {
+                let mut v = vec![macro_types::TAPDANCE, *timeout];
+                v.extend_from_slice(actions);
+                v
             }
             Macro::TimedDualAction(tap, hold, time1, time2) => {
                 if time2 == u16::MAX {
@@ -198,6 +205,7 @@ impl<'source> Parser<'source> {
             iter: SourceIter::new(source.char_indices(), source.len()),
             config: KeyboardConfig::new(path, source),
             mark_idx: 0,
+            macro_sequence: false,
         }
     }
 
@@ -510,22 +518,21 @@ impl<'source> Parser<'source> {
 
         if let Some(code) = keycodes::key_code(name) {
             Ok(code)
-        } else if let Some(base_code) = if self.iter.current.1 == '(' {
-            keycodes::action_code(name)
         } else {
-            keycodes::modifier_macro(name)
-        } {
+            let base_code = if self.iter.current.1 == '(' {
+                keycodes::action_code(name)
+            } else {
+                None
+            };
+
             // actions
             match base_code {
-                key_range::LAYER_MIN..=key_range::REPLACE_LAYERS_MIN => {
+                Some(key_range::LAYER_MIN..=key_range::REPLACE_LAYERS_MIN) => {
                     self.iter.next();
-                    self.parse_layer_code(base_code)
+                    self.parse_layer_code(base_code.unwrap())
                 }
-                key_range::MACROS_MIN => self.parse_macro(name_range),
-                _ => unimplemented!("read_action: {}", base_code),
+                _ => self.parse_macro(name_range),
             }
-        } else {
-            Err(error_span(UNKNOWN_ACTION, name_range))
         }
     }
 
@@ -593,7 +600,6 @@ impl<'source> Parser<'source> {
         self.expect(',')?;
 
         let tap_name = self.read_arg();
-
         let tap = self.read_action(tap_name)?;
 
         let Some(c) = self.next_non_ws() else {
@@ -615,6 +621,30 @@ impl<'source> Parser<'source> {
                 self.add_macro(Macro::TimedDualAction(tap, hold, t1, t2))
             }
         })
+    }
+
+    fn tapdance(&mut self, timeout: u16) -> Result<u16> {
+        let mut v = vec![];
+        loop {
+            let hold_name = self.read_arg();
+            let hold = self.read_action(hold_name)?;
+            v.push(hold);
+
+            self.expect(',')?;
+
+            let tap_name = self.read_arg();
+            let tap = self.read_action(tap_name)?;
+            v.push(tap);
+
+            let Some(c) = self.next_non_ws() else {
+                return Err(self.error(EOF));
+            };
+            match c.1 {
+                ')' => return Ok(self.add_macro(Macro::TapDance(timeout, v))),
+                ',' => {}
+                _ => return Err(self.error("Expected ',' or ')'")),
+            }
+        }
     }
 
     fn parse_macro(&mut self, name_range: SourceRange) -> Result<u16> {
@@ -665,6 +695,18 @@ impl<'source> Parser<'source> {
 
                 self.dualaction(hold)?
             }
+            "tapdance" => {
+                self.assert_not_in_macro_sequence(name_range)?;
+                self.iter.next();
+                self.tapdance(u16::MAX)?
+            }
+            "tapdancet" => {
+                self.assert_not_in_macro_sequence(name_range)?;
+                self.iter.next();
+                let timeout = self.read_timeout()?;
+                self.expect(',')?;
+                self.tapdance(timeout)?
+            }
             "unicode" => {
                 self.iter.next();
                 let uc = self.read_hex_codes()?;
@@ -681,18 +723,21 @@ impl<'source> Parser<'source> {
                 self.add_macro(mac)
             }
             name => {
-                let (modifiers, keycode) = name
-                    .rsplit_once('-')
-                    .ok_or_else(|| error_span(UNKNOWN_ACTION, name_range.clone()))?;
-                let modifiers = keycodes::modifiers_to_bit_map(modifiers).ok_or_else(|| {
-                    ConfigError::new(
-                        format!("Invalid modifiers '{}'", modifiers),
-                        name_range.start..name_range.start + modifiers.len(),
-                    )
-                })?;
-                let keycode = keycodes::key_code(keycode)
-                    .ok_or_else(|| error_span(UNKNOWN_ACTION, name_range))?;
-
+                let Some((modifier_prefix, keycode)) = name.rsplit_once('-') else {
+                    return Err(error_span(UNKNOWN_ACTION, name_range))?;
+                };
+                let modifiers =
+                    keycodes::modifiers_to_bit_map(modifier_prefix).ok_or_else(|| {
+                        ConfigError::new(
+                            format!("Invalid modifiers '{}'", modifier_prefix),
+                            name_range.start..name_range.start + modifier_prefix.len(),
+                        )
+                    })?;
+                let keycode = if let Some(keycode) = keycodes::key_code(keycode) {
+                    keycode
+                } else {
+                    return Err(error_span(UNKNOWN_ACTION, name_range));
+                };
                 self.add_macro(Macro::Modifier { keycode, modifiers })
             }
         };
@@ -732,6 +777,7 @@ impl<'source> Parser<'source> {
 
     fn macro_sequence(&mut self) -> Result<Vec<u16>> {
         let mut seq = Vec::new();
+        self.macro_sequence = true;
         loop {
             let range = self.read_sequence();
             if range.is_empty() {
@@ -781,6 +827,7 @@ impl<'source> Parser<'source> {
                 }
             }
         }
+        self.macro_sequence = false;
         Ok(seq)
     }
 
@@ -931,6 +978,14 @@ impl<'source> Parser<'source> {
             Ok(())
         } else {
             Err(ConfigError::new("suffix not allowed here".into(), range))
+        }
+    }
+
+    fn assert_not_in_macro_sequence(&self, name_range: Range<usize>) -> Result<()> {
+        if self.macro_sequence {
+            Err(error_span("Not allowed in macros", name_range))
+        } else {
+            Ok(())
         }
     }
 }

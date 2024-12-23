@@ -10,6 +10,10 @@ this option. The default is 180ms.
 How long to wait after another two keys are pressed (or released) before giving up on waiting for a
 tap. The default is 20ms.
 
+#### `tapdance_tap_timeout = <milliseconds>>` {#tapdance_tap_timeout}
+How long to wait between taps before executing the counted [`tapdance`][tapdance] action. The timer
+restarts after every key press.
+
 #### `debounce_settle_time = <milliseconds>`
 How long to wait for a key press or release to settle before reporting the next change in state. The
 timer starts from the last bounce detected; so a noisy key will take longer to settle than a stable
@@ -58,3 +62,5 @@ max_time                = 5000
 min_ticks_per_ms        = .01
 max_ticks_per_ms        = .1
 ```
+
+[tapdance]: actions.md#tapdance

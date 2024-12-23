@@ -180,6 +180,78 @@ b = overload(control, C-c, 36, 45)
 }
 
 #[test]
+fn mod_tapdance_action() {
+    let src = r#"
+[matrix:1x2]
+0x00 = a b
+
+[main]
+a = S-tapdance(1,2,3,4,5,6)
+"#;
+
+    let err = test_compile(src)
+        .err()
+        .expect("should not allow S-tapdance");
+
+    assert_eq!(err.message, "Unknown action/keycode");
+    assert_eq!(err.span.unwrap(), 37..47);
+}
+
+#[test]
+fn tapdance_action() {
+    let src = r#"
+[matrix:1x2]
+0x00 = a b
+
+[main]
+a = tapdance(1,2,3,4,5,6)
+"#;
+
+    let config = pretty_compile(src).expect("should allow tapdance");
+
+    let td1 = config.macros.first().expect("should find tapdance");
+
+    let exp = Macro::TapDance(u16::MAX, vec![30, 31, 32, 33, 34, 35]);
+    assert_eq!(td1, &exp);
+
+    assert_eq!(exp.serialize(), &[7, u16::MAX, 30, 31, 32, 33, 34, 35]);
+}
+
+#[test]
+fn tapdancet_action() {
+    let src = r#"
+[matrix:1x2]
+0x00 = a b
+
+[main]
+a = tapdancet(120, layer(shift), x)
+"#;
+    let config = pretty_compile(src).expect("should allow tapdance");
+
+    let td1 = config.macros.first().expect("should find tapdance");
+
+    let exp = Macro::TapDance(120, vec![1537, 27]);
+    assert_eq!(td1, &exp);
+
+    assert_eq!(exp.serialize(), &[7, 120, 1537, 27]);
+}
+
+#[test]
+fn tapdance_not_allowed_in_macro() {
+    let src = r#"
+[matrix:1x2]
+0x00 = a b
+
+[main]
+a = macro(tapdance(1,2,3,4,5,6))
+"#;
+
+    let err = test_compile(src).err().unwrap();
+    assert_eq!(err.message, "Not allowed in macros");
+    assert_eq!(err.span.unwrap(), 43..51);
+}
+
+#[test]
 fn macro_tap() {
     let src = r#"
 [matrix:1x2]
@@ -990,7 +1062,7 @@ fn global_dual_action_timeout() {
 
         assert_eq!(
             bin,
-            [1, 0, 6, 0, 2, 0, 500, 7, 8, 9, 10, 11, 12, 13, 1, 2, 4, 8, 64, 0]
+            [1, 0, 6, 0, 2, 3, 500, 7, 8, 9, 10, 11, 12, 13, 1, 2, 4, 8, 64, 0]
         );
     });
 }
@@ -1017,7 +1089,30 @@ fn global_dual_action_timeout2() {
 
         assert_eq!(
             bin,
-            [1, 0, 6, 0, 2, 1, 50, 7, 8, 9, 10, 11, 12, 13, 1, 2, 4, 8, 64, 0]
+            [1, 0, 6, 0, 2, 4, 50, 7, 8, 9, 10, 11, 12, 13, 1, 2, 4, 8, 64, 0]
+        );
+    });
+}
+
+#[test]
+fn tapdance_tap_timeout() {
+    compile_global!(src, config, "tapdance_tap_timeout", 50, {
+        let config = config.unwrap();
+        assert!(matches!(
+            config.global("tapdance_tap_timeout").unwrap().spec,
+            GlobalType::Timeout {
+                value: 50,
+                min: 0,
+                max: 5000,
+                dp: 0
+            }
+        ));
+
+        let bin = config.serialize();
+
+        assert_eq!(
+            bin,
+            [1, 0, 6, 0, 2, 6, 50, 7, 8, 9, 10, 11, 12, 13, 1, 2, 4, 8, 64, 0]
         );
     });
 }
@@ -1044,7 +1139,7 @@ fn global_debounce_settle_time() {
 
         assert_eq!(
             bin,
-            [1, 0, 6, 0, 2, 2, 235, 7, 8, 9, 10, 11, 12, 13, 1, 2, 4, 8, 64, 0]
+            [1, 0, 6, 0, 2, 5, 235, 7, 8, 9, 10, 11, 12, 13, 1, 2, 4, 8, 64, 0]
         );
     });
 }

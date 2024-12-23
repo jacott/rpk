@@ -6,10 +6,12 @@ building firmware for your keyboard.
 
 # Features
 
+<!-- ANCHOR: features -->
 - Text file configuration which can be uploaded instantly via the `rpk-config` companion program (no
   need to re-flash firmware).
 - 256 low cost layers (first 32 can be parts in composite layers).
-- 4096 macros.
+- 4096 macros of arbitrary length.
+- Tap dance (many actions on a single key).
 - Sensible key overloading, oneshot layers and changeable base layout.
 - Modifiers are layers.
 - Mouse support with changeable acceleration profiles.
@@ -18,7 +20,8 @@ building firmware for your keyboard.
 - Ring file system for storing multiple configurations.
 - Clear, reset, bootloader actions and reset on panic.
 - Low latency debounce logic.
-- Low overhead firmware - uses rust [embassy][3] async embedded framework.
+- Low overhead firmware - uses rust [embassy](https://embassy.dev) async embedded framework.
+<!-- ANCHOR_END: features -->
 
 # Example config file
 
@@ -104,7 +107,6 @@ scanner_buffer_size = 32
 - Web and binary Graphical configuration app.
 - Host daemon app for displaying keyboard information and changing keyboard layers/configuration
   based on host application in focus.
-- Tap dance.
 - record/play macros and store in flash.
 - Key chording.
 - LED support.
@@ -123,7 +125,6 @@ MIT license ([LICENSE-MIT][6] or <http://opensource.org/licenses/MIT>)
 
 [1]: https://github.com/rvaiya/keyd
 [2]: https://jacott.github.io/rpk/
-[3]: https://embassy.dev
 [4]: keyboards/rp2040/macropad-3x3/default-layout.rpk.conf
 [5]: https://www.raspberrypi.com/products/raspberry-pi-pico/
 [6]: LICENSE-MIT

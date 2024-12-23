@@ -36,7 +36,7 @@ pub enum LoadError {
 }
 
 pub(crate) struct Globals {
-    pub(crate) values: [u16; 3],
+    pub(crate) values: [u16; (globals::LAST_TIMEOUT - globals::DUAL_ACTION_TIMEOUT + 1) as usize],
 }
 impl Default for Globals {
     fn default() -> Self {
@@ -45,6 +45,7 @@ impl Default for Globals {
                 globals::DUAL_ACTION_TIMEOUT_DEFAULT,
                 globals::DUAL_ACTION_TIMEOUT2_DEFAULT,
                 globals::DEBOUNCE_SETTLE_TIME_DEFAULT,
+                globals::TAPDANCE_TAP_TIMEOUT_DEFAULT,
             ],
         }
     }
@@ -156,13 +157,13 @@ impl<const ROWS: usize, const COLS: usize, const LAYOUT_MAX: usize>
                         MouseAnalogSetting::deserialize(&mut iter).ok_or(LoadError::Corrupt)?;
                     globals_count -= 21;
                 }
-                globals::DUAL_ACTION_TIMEOUT..=globals::DEBOUNCE_SETTLE_TIME => {
+                globals::DUAL_ACTION_TIMEOUT..=globals::LAST_TIMEOUT => {
                     globals_count -= 2;
                     let v = iter.next().ok_or(LoadError::Corrupt)?;
                     *self
                         .globals
                         .values
-                        .get_mut(i as usize)
+                        .get_mut((i - globals::DUAL_ACTION_TIMEOUT) as usize)
                         .ok_or(LoadError::Corrupt)? = v;
                 }
                 _ => return Err(LoadError::Corrupt),
@@ -439,7 +440,7 @@ impl<const ROWS: usize, const COLS: usize, const LAYOUT_MAX: usize>
     }
 
     pub(crate) fn global(&self, index: usize) -> u16 {
-        self.globals.values[index]
+        self.globals.values[index - (globals::DUAL_ACTION_TIMEOUT as usize)]
     }
 
     pub(crate) fn get_mouse_profile(&self, index: usize) -> Option<&MouseConfig> {

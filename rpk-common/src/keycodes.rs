@@ -67,4 +67,5 @@ pub mod macro_types {
     pub const HOLD: u16 = 4;
     pub const RELEASE: u16 = 5;
     pub const DELAY: u16 = 6;
+    pub const TAPDANCE: u16 = 7;
 }

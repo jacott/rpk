@@ -8,7 +8,7 @@ use embassy_sync::{
     signal::Signal,
 };
 use embassy_time::{Instant, Timer};
-use macros::Macro;
+use macros::{Macro, TapDance};
 use mouse::Mouse;
 use rpk_common::{globals, keycodes::key_range};
 
@@ -266,10 +266,12 @@ pub struct Mapper<
     wait_time: u64,
     oneshot: Oneshot,
     dual_action: DualActionTimer,
+    tapdance: TapDance,
     last_scan_key: TimedScanKey,
     macro_running: Macro,
     memo_count: usize,
     now: u64,
+    report_count: u16,
     debounce_ms_atomic: &'c atomic::AtomicU8,
     pending_down_modifiers: u8,
     pending_up_modifiers: u8,
@@ -298,10 +300,12 @@ impl<
             wait_time: u64::MAX,
             oneshot: Oneshot::None,
             dual_action: Default::default(),
+            tapdance: Default::default(),
             last_scan_key: TimedScanKey::none(),
             macro_running: Macro::Noop,
             memo_count: 0,
             now: 1,
+            report_count: 0,
             debounce_ms_atomic,
             pending_down_modifiers: 0,
             pending_up_modifiers: 0,
@@ -387,8 +391,19 @@ impl<
     }
 
     pub fn key_switch(&mut self, k: TimedScanKey) {
+        if self.tapdance.is_running() {
+            if !self.last_scan_key.same_key(&k) || self.tapdance.rem == 0 {
+                self.tapdance_timeout();
+                self.push_scan_key(&k);
+            } else {
+                self.last_scan_key = k;
+                self.key_switch_1(k.0);
+            }
+            return;
+        }
+
         self.last_scan_key = k;
-        if self.dual_action.key_switch(self.last_scan_key) {
+        if self.dual_action.key_switch(k) {
             self.key_switch_1(k.0);
             return;
         }
@@ -407,9 +422,6 @@ impl<
                 self.flush_modifiers(false);
             }
             DualActionTimer::Tap { scan_key, tap } => {
-                if !scan_key.0.is_same_key(k.0) {
-                    self.push_scan_key(&k);
-                }
                 self.dual_action = DualActionTimer::NoDual;
                 self.last_scan_key = scan_key;
                 if self.push_action(tap, false) {
@@ -421,21 +433,24 @@ impl<
     }
 
     fn key_switch_1(&mut self, k: ScanKey) {
+        let rc = self.report_count;
         if k.is_down() {
             let Some(kc) = self.layout.find_code(k.row(), k.column()) else {
                 return;
             };
-            self.activate_action(k.row(), k.column(), kc);
+            self.active_actions[k.row()][k.column()] = kc;
             if kc.1 != 0 {
                 self.write_up_modifiers(kc.1, true);
             }
             self.run_action(kc.0, true);
+            if rc == self.report_count && kc.1 != 0 {
+                self.write_down_modifiers(kc.1, true);
+            }
         } else {
-            let kc = self.deactivate_action(k.row(), k.column());
-
+            let kc = self.active_actions[k.row()][k.column()];
             self.run_action(kc.0, false);
 
-            if kc.1 != 0 {
+            if rc != self.report_count && kc.1 != 0 {
                 self.write_down_modifiers(kc.1, true);
             }
             match self.oneshot {
@@ -472,6 +487,7 @@ impl<
     }
 
     fn report(&mut self, message: KeyEvent) {
+        self.report_count = self.report_count.wrapping_add(1);
         self.flush_modifiers(true);
         self.report_channel.report(message);
     }
@@ -503,6 +519,7 @@ impl<
     }
 
     fn firmware_action(&mut self, action: u16, is_down: bool) {
+        let rc = self.report_count;
         match action {
             key_range::FW_RESET_KEYBOARD => {
                 if !is_down {
@@ -531,6 +548,9 @@ impl<
                 );
             }
         }
+        if !is_down {
+            self.report_count = rc;
+        }
     }
 
     pub fn load_layout(
@@ -553,18 +573,31 @@ impl<
         let mac = self.layout.get_macro(id);
         match &mac {
             Macro::Modifier(ref key_plus_mod) => {
+                let rc = self.report_count;
                 if is_down {
                     self.write_down_modifiers(key_plus_mod.1, true);
                     self.write_down_modifiers(key_plus_mod.1, true);
                     self.run_action(key_plus_mod.0, is_down);
+
+                    if rc == self.report_count {
+                        self.write_up_modifiers(key_plus_mod.1, true);
+                        self.write_up_modifiers(key_plus_mod.1, true);
+                    }
                 } else {
                     self.run_action(key_plus_mod.0, is_down);
-                    self.write_up_modifiers(key_plus_mod.1, true);
-                    self.write_up_modifiers(key_plus_mod.1, true);
+                    if rc != self.report_count {
+                        self.write_up_modifiers(key_plus_mod.1, true);
+                        self.write_up_modifiers(key_plus_mod.1, true);
+                    }
                 }
             }
             Macro::DualAction(ref tap, ref hold, ref t1, ref t2) => {
                 self.start_dual_action(is_down, *tap, *hold, *t1, *t2);
+            }
+            Macro::TapDance(ref location, ref len) => {
+                if *len > 2 {
+                    self.tapdance(*location, *len);
+                }
             }
             Macro::Noop => {}
             Macro::Sequence {
@@ -634,6 +667,8 @@ impl<
                             }
                         } else if self.dual_action.wait_until() <= self.now {
                             self.dual_action_expired();
+                        } else if self.tapdance.wait_until <= self.now {
+                            self.tapdance_timeout();
                         }
                     }
                     self.set_wait_time();
@@ -648,6 +683,64 @@ impl<
                 _ => {}
             }
         }
+    }
+
+    fn tapdance(&mut self, location: u32, len: u16) {
+        if !self.tapdance.is_same(location, len) {
+            let tl = location as usize;
+            let tap_timeout = self.layout.macro_code(tl);
+            self.tapdance.start(tap_timeout, location + 1, len - 1);
+        }
+
+        if self.tapdance.rem < 2 {
+            if self.tapdance.rem == 1 {
+                self.tapdance.location += 1;
+                self.tapdance.rem -= 1;
+            }
+            self.tapdance.wait_until = self.now;
+        } else {
+            self.tapdance.location += 1;
+            self.tapdance.rem -= 1;
+            let timeout = if self.tapdance.tap_timeout == u16::MAX {
+                self.layout.global(globals::TAPDANCE_TAP_TIMEOUT as usize)
+            } else {
+                self.tapdance.tap_timeout
+            };
+
+            if self.tapdance.rem & 1 == 1 {
+                self.tapdance.wait_until = self.now + timeout as u64;
+            }
+        }
+        self.set_wait_time();
+    }
+
+    fn tapdance_timeout(&mut self) {
+        let location = self.tapdance.location as usize - 1;
+        let action = self.layout.macro_code(location);
+
+        self.tapdance.clear();
+        self.set_wait_time();
+
+        let k = self.last_scan_key.0;
+        let mut aa = self.active_actions[k.row()][k.column()];
+        let m = aa.1;
+
+        if m != 0 {
+            self.write_up_modifiers(m, true);
+        }
+        aa.0 = action;
+        aa.1 = m;
+        self.active_actions[k.row()][k.column()] = aa;
+        if k.is_down() {
+            self.run_action(action, true);
+        } else {
+            let mut sk = self.last_scan_key;
+            sk.0.set_down(false);
+            if self.push_scan_key(&sk) {
+                self.run_action(action, true);
+            }
+        }
+        self.flush_modifiers(false);
     }
 
     fn next_macro_seq(&mut self, mut location: u32, mut rem: u16, mode: macros::SequenceMode) {
@@ -708,6 +801,7 @@ impl<
     }
 
     fn layer(&mut self, key: u16, is_down: bool) {
+        self.report_count = self.report_count.wrapping_add(1);
         let base = key_range::base_code(key);
         let layern = key - base;
 
@@ -767,16 +861,6 @@ impl<
         } else {
             false
         }
-    }
-
-    fn activate_action(&mut self, row_idx: usize, column_idx: usize, kc: KeyPlusMod) {
-        self.active_actions[row_idx][column_idx] = kc;
-    }
-
-    fn deactivate_action(&mut self, row_idx: usize, column_idx: usize) -> KeyPlusMod {
-        let ans = self.active_actions[row_idx][column_idx];
-        self.active_actions[row_idx][column_idx] = KeyPlusMod::none();
-        ans
     }
 
     fn write_up_modifiers(&mut self, modifiers: u8, pending: bool) {
@@ -848,6 +932,8 @@ impl<
         let mut t = min(self.mouse.next_event_time(), self.dual_action.wait_until());
         if self.macro_running != Macro::Noop {
             t = min(t, self.now);
+        } else if self.tapdance.is_running() {
+            t = min(t, self.tapdance.wait_until);
         }
 
         if t != self.wait_time {

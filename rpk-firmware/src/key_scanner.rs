@@ -63,6 +63,14 @@ impl ScanKey {
             col: (memo >> 8) as u8,
         }
     }
+
+    pub(crate) fn set_down(&mut self, down: bool) {
+        if down {
+            self.row |= 0x80;
+        } else {
+            self.row &= !0x80;
+        }
+    }
 }
 
 pub struct KeyScannerChannel<M: RawMutex, const N: usize>(Channel<M, ScanKey, N>);

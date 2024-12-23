@@ -640,6 +640,7 @@ fn globals() {
 
 dual_action_timeout = 500
 dual_action_timeout2 = 50
+tapdance_tap_timeout = 90
 debounce_settle_time = 12.3
 
 [matrix:2x3]
@@ -650,6 +651,7 @@ debounce_settle_time = 12.3
         {
             assert_eq!(t.layout.global(globals::DUAL_ACTION_TIMEOUT as usize), 500);
             assert_eq!(t.layout.global(globals::DUAL_ACTION_TIMEOUT2 as usize), 50);
+            assert_eq!(t.layout.global(globals::TAPDANCE_TAP_TIMEOUT as usize), 90);
             assert_eq!(t.layout.global(globals::DEBOUNCE_SETTLE_TIME as usize), 123);
 
             let debounce = t.debounce_ms_atomic.load(atomic::Ordering::Relaxed);
@@ -1149,6 +1151,168 @@ g = C-S-m
                 press!(0, 2, false);
                 assert_read!(KEY_UP, "leftshift");
             }
+        }
+    );
+}
+
+#[test]
+fn shift_tapdance() {
+    setup!(
+        t,
+        press,
+        assert_read,
+        r#"
+[matrix:2x3]
+0x00 = lsft b c
+
+[shift]
+c = tapdance(1,2,3,4,5,6)
+"#,
+        {
+            let mut now = 100;
+
+            macro_rules! advance {
+                ($t:expr) => {
+                    now += $t;
+                    t.now = now;
+                    t.check_time();
+                };
+            }
+
+            advance!(0);
+
+            // shift
+            press!(0, 0, true);
+            assert_read!(KEY_DOWN, "leftshift");
+
+            // hold td
+            press!(0, 2, true);
+            assert_read!(NONE);
+
+            advance!(180);
+            assert_read!(E PendingModifiers(2, false));
+            assert_read!(KEY_DOWN, "1");
+            assert_read!(NONE);
+
+            // release td
+            press!(0, 2, false);
+            assert_read!(KEY_UP, "1");
+            assert_read!(E Modifiers(2, true));
+
+            // tap td
+            press!(0, 2, TAP);
+            assert_read!(NONE);
+
+            advance!(180);
+            assert_read!(E PendingModifiers(2, false));
+            assert_read!(KEY_DOWN, "2");
+            assert_read!(NONE);
+
+            t.run_memo();
+            assert_read!(KEY_UP, "2");
+            assert_read!(E Modifiers(2, true));
+            assert_read!(NONE);
+
+            // shift up
+            press!(0, 0, false);
+            assert_read!(KEY_UP, "leftshift");
+        }
+    );
+}
+
+#[test]
+fn tapdance() {
+    setup!(
+        t,
+        press,
+        assert_read,
+        r#"
+[matrix:2x3]
+0x00 = a b c
+
+[main]
+c = tapdance(1,2,3,4,5,6)
+"#,
+        {
+            let mut now = 100;
+
+            macro_rules! advance {
+                ($t:expr) => {
+                    now += $t;
+                    t.now = now;
+                    t.check_time();
+                };
+            }
+
+            advance!(0);
+
+            // tap
+            press!(0, 2, true); // timer set on hold
+            advance!(140);
+            press!(0, 2, false); // timer not reset on release
+            advance!(39);
+            assert_read!(NONE);
+
+            advance!(1);
+            assert_read!(KEY_DOWN, "2");
+            assert_read!(NONE);
+            t.run_memo();
+            assert_read!(KEY_UP, "2");
+            assert_read!(NONE);
+
+            // tap, tap
+            press!(0, 2, TAP);
+            press!(0, 2, TAP);
+            assert_read!(NONE);
+
+            advance!(180);
+            t.run_memo();
+
+            assert_read!(TAP "4");
+
+            // tap, tap, tap
+            press!(0, 2, TAP);
+            press!(0, 2, TAP);
+            assert_read!(NONE);
+
+            press!(0, 2, TAP);
+            press!(0, 2, true);
+
+            assert_read!(KEY_DOWN, "6");
+            //press!(0, 2, false);
+            assert_read!(NONE);
+            t.run_memo();
+            assert_read!(KEY_UP, "6");
+            t.run_memo();
+            press!(0, 2, false);
+            advance!(180);
+            t.run_memo();
+            assert_read!(TAP "2");
+            assert_read!(NONE);
+
+            // hold
+            press!(0, 2, true);
+            advance!(180);
+            t.run_memo();
+
+            assert_read!(KEY_DOWN, "1");
+
+            press!(0, 2, false);
+            assert_read!(KEY_UP, "1");
+
+            // tap, hold
+            press!(0, 2, TAP);
+            advance!(179);
+            press!(0, 2, true);
+            advance!(180);
+            t.run_memo();
+
+            assert_read!(KEY_DOWN, "3");
+
+            press!(0, 2, false);
+            assert_read!(KEY_UP, "3");
+
+            assert_read!(NONE);
         }
     );
 }
