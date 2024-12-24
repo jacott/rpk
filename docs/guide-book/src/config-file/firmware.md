@@ -39,7 +39,7 @@ fs_base             = 0x100000 # room for other things like firmware
 fs_size             = flash_size - fs_base
 
 # How much room to reserve for layout configuration + runtime requirements.
-max_layout_size     = 8 * 1024
+max_layout_size     = 8 * 1024 # (8K)
 
 # How many messages can we queue to the usb interface without waiting.
 report_buffer_size  = 32

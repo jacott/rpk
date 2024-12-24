@@ -17,8 +17,13 @@ restarts after every key press.
 #### `debounce_settle_time = <milliseconds>`
 How long to wait for a key press or release to settle before reporting the next change in state. The
 timer starts from the last bounce detected; so a noisy key will take longer to settle than a stable
-key. The default is 20ms. In essence this dictates how minimum report time between a key press and
+key. The default is 20ms. In essence this dictates the minimum report time between a key press and
 release or release and press. Allowed values range from 0.1ms to 25.0ms.
+
+<div class="warning">
+All keys on the keyboard must be released for at least 2 seconds for a change in value of this
+field to take effect.
+</div>
 
 #### `unicode_prefix = <action>`
 The action to run before sending a unicode sequence.

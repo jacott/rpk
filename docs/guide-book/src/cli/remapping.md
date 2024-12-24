@@ -11,7 +11,9 @@ then `rpk-config` can find the corresponding keyboard automatically. If not you 
 arguments to specify the keyboard if there is more than one. To see the list of connected keyboards
 run the command: `rpk-config list-usb`.
 
-Note: only devices with serial numbers starting with "rpk:" can be configured.
+<div class="warning">
+Only devices with serial numbers starting with "rpk:" can be configured.
+</div>
 
 The config file will first be validated before being sent to the keyboard. You can validate the
 config file without uploading by running the `rpk-config validate <path-to-conf-file>` command

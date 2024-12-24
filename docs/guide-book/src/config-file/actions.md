@@ -12,10 +12,10 @@ rpk-config list-keycodes
 
 Try adding `--help` for extra features available for listing the codes.
 
-Other pseduo keycodes are used to change the state of the keyboard.
+Other pseudo keycodes are used to change the state of the keyboard.
 
 
-The special keycodes are:
+These special keycodes are:
 
 1. `mouseaccel<n>` where `<n>` is 1, 2, or 3. `mouseaccel1` will change the mouse movement and
    scroll accelerations characteristics from the default `mouseaccel2` as will `mouseaccel3` usually
@@ -100,16 +100,15 @@ following forms are all valid macro expressions:
 * A contiguous list of unicode characters.
 
 `macro()` taps out the expression, `hold()` activates the keycodes on a key press and `release()`
-deactivates the keycodes on key release. `macro(hold(<expr1>) release(<expr2>))` will activate
-`<expr1>` on key press and deactivate `<expr2>` on key release.
+deactivates the keycodes on key release. `macro(hold(<expr1>) release(<expr2>))` is a special form
+that will activate `<expr1>` on key press and deactivate `<expr2>` on key release.
 
 `<unicode-char>` is a unicode character not in the basic keycode range; it is converted to
 `unicode(<hex-digits>)` which will invoke the `global.unicode_prefix` action, type out the
 hex-digits, and finally invoke the `global.unicode_suffix` action.
 
-`<modifier-list>-<keycode>` is a list of modifier codes separated by a dash `-` (See [modifiers][2])
-followed by any valid keycode. This will report the modifiers along with the keycode; for example
-`S-1` will normally produce a bang `!`.
+`<modifier-list>-<keycode>` is a list of modifier codes separated by a dash `-` followed by any
+valid keycode.
 
 The following are all valid macro expressions:
 
@@ -123,9 +122,9 @@ Splitting into smaller tokens serves as an escaping mechainism: `macro(space)` i
 
 ### Modifier macros
 
-Modifier macros report the given modifiers before reporting the `keycode`. The modifiers are
-reported only when necessary. This makes them useful for keeping [layer modifiers][2] in place when
-defining keys on that layer.[^note2]
+Modifier macros report the given [modifiers][2] before reporting the `keycode`; for example `S-1`
+produces a bang `!`.  The modifiers are reported only when necessary. This makes them useful for
+keeping [layer modifiers][2] in place when defining keys on that layer.
 
 #### Example
 
@@ -142,12 +141,8 @@ reported.
 
 ---
 
-[^note1]: `tapdance` is less nuanced than `dual_action`; it doesn't interact with other keys;
-    any other key press resolves the tap dance at whatever place it is at.
-
-[^note2]: Sometimes, when multiple modifiers are pressed, a modifier is released before the
-    modifier-macro is pressed. This would result in the modifier-macro not sending the down
-    event. To help prevent this modifier-macros double set the modifiers.
+[^note1]: `tapdance` is less nuanced than `dual_action`; it doesn't interact as skillfully with
+    other keys; any other key press immediately resolves the tap dance at whatever place it is at.
 
 
 [1]: https://en.wikipedia.org/wiki/USB_human_interface_device_class

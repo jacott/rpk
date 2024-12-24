@@ -1,10 +1,11 @@
 # Matrix Section
 
-This section gives the keyboard's individual switches a symbolic name. See the [firmware][1] section to
-see how to configure the MCU pins into rows and columns. The matrix section identifier takes an
+This section gives the keyboard's individual switches a symbolic name. See the [firmware][1] section
+to see how to configure the MCU pins into rows and columns. The matrix section identifier takes an
 additional suffix which defines how many rows and columns are being mapped[^note1] like
 `[matrix:4x12]` which would indicate 4 rows and 12 columns. Assignments in this section start with a
-row-column id assigned to one or more symbols. Matrix is the only required section in a config file.
+row-column id assigned to one or more symbols. `[matrix]` is the only required section in a config
+file.
 
 ### Example
 
@@ -82,6 +83,6 @@ switch to the `nav` layer if held.
 
 ---
 
-[^note1]: The matrix suffix can be a bit redundant if the firmware section defining pins is present
-    but since the firmware section is optional we always need to define it as part of the matrix
-    section header.
+[^note1]: The matrix suffix is a bit redundant if the firmware section defining pins is present but
+    since the firmware section is optional we always need to define it as part of the matrix section
+    header.
