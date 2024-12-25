@@ -140,13 +140,11 @@ impl<const ROWS: usize, const COLS: usize, const LAYOUT_MAX: usize>
         let mut globals_count = iter.next().ok_or(LoadError::Corrupt)?;
 
         while globals_count != 0 {
-            if globals_count < 2 {
-                crate::error!("corrupt layout: globals_count is wrong");
-                return Err(LoadError::Corrupt);
-            }
             let i = iter.next().ok_or(LoadError::Corrupt)?;
             match i {
                 globals::MOUSE_PROFILE1..=globals::MOUSE_PROFILE3 => {
+                    assert_globals_count(globals_count >= 21)?;
+                    globals_count -= 21;
                     let mp = self
                         .mouse_profiles
                         .get_mut((i - globals::MOUSE_PROFILE1) as usize)
@@ -155,9 +153,9 @@ impl<const ROWS: usize, const COLS: usize, const LAYOUT_MAX: usize>
                         MouseAnalogSetting::deserialize(&mut iter).ok_or(LoadError::Corrupt)?;
                     mp.scroll =
                         MouseAnalogSetting::deserialize(&mut iter).ok_or(LoadError::Corrupt)?;
-                    globals_count -= 21;
                 }
                 globals::DUAL_ACTION_TIMEOUT..=globals::LAST_TIMEOUT => {
+                    assert_globals_count(globals_count >= 2)?;
                     globals_count -= 2;
                     let v = iter.next().ok_or(LoadError::Corrupt)?;
                     *self
@@ -516,6 +514,15 @@ fn search_code(mut codes: &[u16], row: usize, column: usize) -> u16 {
         } else {
             return if codes.len() > s + 1 { codes[s + 1] } else { 0 };
         }
+    }
+}
+
+fn assert_globals_count(okay: bool) -> Result<(), LoadError> {
+    if okay {
+        Ok(())
+    } else {
+        crate::error!("corrupt layout: globals_count is wrong");
+        Err(LoadError::Corrupt)
     }
 }
 

@@ -24,7 +24,7 @@ pub async fn run_mapper<
         if !match fs.file_reader_by_index(0) {
             Ok(fr) => {
                 if let Err(err) = mapper.load_layout(config::ConfigFileIter::new(fr).skip(2)) {
-                    crate::info!("error FIXME loading layout {:?}", err);
+                    crate::info!("error loading layout {:?}", err);
                     false
                 } else {
                     true
