@@ -440,18 +440,18 @@ impl<
             };
             self.active_actions[k.row()][k.column()] = kc;
             if kc.1 != 0 {
-                self.write_up_modifiers(kc.1, true);
+                self.write_modifiers(kc.1, -1, true);
             }
             self.run_action(kc.0, true);
             if rc == self.report_count && kc.1 != 0 {
-                self.write_down_modifiers(kc.1, true);
+                self.write_modifiers(kc.1, 1, true);
             }
         } else {
             let kc = self.active_actions[k.row()][k.column()];
             self.run_action(kc.0, false);
 
             if rc != self.report_count && kc.1 != 0 {
-                self.write_down_modifiers(kc.1, true);
+                self.write_modifiers(kc.1, 1, true);
             }
             match self.oneshot {
                 Oneshot::None => {}
@@ -573,22 +573,12 @@ impl<
         let mac = self.layout.get_macro(id);
         match &mac {
             Macro::Modifier(ref key_plus_mod) => {
-                let rc = self.report_count;
                 if is_down {
-                    self.write_down_modifiers(key_plus_mod.1, true);
-                    self.write_down_modifiers(key_plus_mod.1, true);
+                    self.write_modifiers(key_plus_mod.1, 10, true);
                     self.run_action(key_plus_mod.0, is_down);
-
-                    if rc == self.report_count {
-                        self.write_up_modifiers(key_plus_mod.1, true);
-                        self.write_up_modifiers(key_plus_mod.1, true);
-                    }
                 } else {
                     self.run_action(key_plus_mod.0, is_down);
-                    if rc != self.report_count {
-                        self.write_up_modifiers(key_plus_mod.1, true);
-                        self.write_up_modifiers(key_plus_mod.1, true);
-                    }
+                    self.write_modifiers(key_plus_mod.1, -10, true);
                 }
             }
             Macro::DualAction(ref tap, ref hold, ref t1, ref t2) => {
@@ -726,7 +716,7 @@ impl<
         let m = aa.1;
 
         if m != 0 {
-            self.write_up_modifiers(m, true);
+            self.write_modifiers(m, -1, true);
         }
         aa.0 = action;
         aa.1 = m;
@@ -793,10 +783,10 @@ impl<
             } else {
                 self.layout.push_layer(layer as u16);
             }
-            self.write_down_modifiers(1 << idx, false);
+            self.write_modifiers(1 << idx, 1, false);
         } else {
             self.layout.pop_layer(layer as u16);
-            self.write_up_modifiers(1 << idx, false);
+            self.write_modifiers(1 << idx, -1, false);
         };
     }
 
@@ -850,77 +840,57 @@ impl<
 
     fn push_layer(&mut self, layern: u16) {
         if self.layout.push_layer(layern) {
-            self.write_down_modifiers(self.layout.get_layer(layern).unwrap().modifiers(), false);
+            self.write_modifiers(self.layout.get_layer(layern).unwrap().modifiers(), 1, false);
         }
     }
 
     fn pop_layer(&mut self, layern: u16) -> bool {
         if self.layout.pop_layer(layern) {
-            self.write_up_modifiers(self.layout.get_layer(layern).unwrap().modifiers(), false);
+            self.write_modifiers(
+                self.layout.get_layer(layern).unwrap().modifiers(),
+                -1,
+                false,
+            );
             true
         } else {
             false
         }
     }
 
-    fn write_up_modifiers(&mut self, modifiers: u8, pending: bool) {
+    fn write_modifiers(&mut self, modifiers: u8, count: i8, pending: bool) {
         if modifiers == 0 {
             return;
         }
+        let mut pmods = 0;
+
         let mut changed = 0;
         let mut bits = modifiers;
         for i in 0..8 {
             if bits & 1 == 1 {
-                self.modifier_count[i] -= 1;
-                if self.modifier_count[i] == 0 {
+                let before = self.modifier_count[i] > 0;
+                self.modifier_count[i] += count;
+                if before != (self.modifier_count[i] > 0) {
+                    pmods |= 1 << i;
                     changed += 1;
                 }
             }
             bits >>= 1;
             if bits == 0 {
                 if changed != 0 {
+                    let down = count > 0;
                     if pending {
-                        self.pending_up_modifiers |= modifiers;
+                        if down {
+                            self.pending_down_modifiers |= pmods;
+                        } else {
+                            self.pending_up_modifiers |= pmods;
+                        }
                     } else if changed == 1 {
                         self.report(KeyEvent::basic(
                             key_range::MODIFIER_MIN as u8 + i as u8,
-                            false,
+                            down,
                         ));
                     } else {
-                        self.report(KeyEvent::modifiers(modifiers, false, pending));
-                    }
-                }
-                return;
-            }
-        }
-    }
-
-    fn write_down_modifiers(&mut self, modifiers: u8, pending: bool) {
-        if modifiers == 0 {
-            return;
-        }
-
-        let mut changed = 0;
-        let mut bits = modifiers;
-        for i in 0..8 {
-            if bits & 1 == 1 {
-                self.modifier_count[i] += 1;
-                if self.modifier_count[i] == 1 {
-                    changed += 1;
-                }
-            }
-            bits >>= 1;
-            if bits == 0 {
-                if changed != 0 {
-                    if pending {
-                        self.pending_down_modifiers |= modifiers;
-                    } else if changed == 1 {
-                        self.report(KeyEvent::basic(
-                            key_range::MODIFIER_MIN as u8 + i as u8,
-                            true,
-                        ));
-                    } else {
-                        self.report(KeyEvent::modifiers(modifiers, true, pending));
+                        self.report(KeyEvent::modifiers(modifiers, down, pending));
                     }
                 }
                 return;

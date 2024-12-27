@@ -1221,6 +1221,48 @@ c = tapdance(1,2,3,4,5,6)
 }
 
 #[test]
+fn composite_bug() {
+    setup!(
+        t,
+        press,
+        assert_read,
+        r#"
+[matrix:2x3]
+0x00 = a b c
+
+[main]
+a = layer(shift)
+
+[shift]
+c = layer(alt)
+
+[alt]
+b = 3
+
+[alt+shift]
+b = 2
+"#,
+        {
+            press!(0, 0, true);
+            assert_read!(KEY_DOWN, "leftshift");
+            press!(0, 2, true);
+            assert_read!(E PendingModifiers(2, false));
+            assert_read!(KEY_DOWN, "leftalt");
+            press!(0, 1, TAP);
+            assert_read!(E PendingModifiers(4, false));
+            assert_read!(TAP "2");
+            assert_read!(E Modifiers(4, true));
+            press!(0, 2, false);
+            assert_read!(KEY_UP, "leftalt");
+            assert_read!(E Modifiers(2, true));
+            press!(0, 0, false);
+            assert_read!(KEY_UP, "leftshift");
+            assert_read!(NONE);
+        }
+    );
+}
+
+#[test]
 fn tapdance() {
     setup!(
         t,
