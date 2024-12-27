@@ -1286,6 +1286,12 @@ c = tapdance(1,2,3,4,5,6)
                 };
             }
 
+            assert!(!t.tapdance.is_running());
+            assert_eq!(t.tapdance.wait_until, u64::MAX);
+            assert_eq!(t.wait_time, u64::MAX);
+            t.set_wait_time();
+            assert_eq!(t.wait_time, u64::MAX);
+
             advance!(0);
 
             // tap

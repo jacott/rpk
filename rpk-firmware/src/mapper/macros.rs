@@ -18,7 +18,7 @@ impl SequenceMode {
     }
 }
 
-#[derive(Debug, Default, PartialEq, Copy, Clone)]
+#[derive(Debug, PartialEq, Copy, Clone)]
 pub struct TapDance {
     pub(crate) wait_until: u64,
     pub(crate) location: u32,
@@ -44,6 +44,16 @@ impl TapDance {
 
     pub(crate) fn is_same(&self, location: u32, len: u16) -> bool {
         self.location + self.rem as u32 == location + len as u32
+    }
+}
+impl Default for TapDance {
+    fn default() -> Self {
+        Self {
+            wait_until: u64::MAX,
+            location: 0,
+            tap_timeout: u16::MAX,
+            rem: 0,
+        }
     }
 }
 
