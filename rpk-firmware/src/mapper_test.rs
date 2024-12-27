@@ -339,6 +339,36 @@ c = reset_to_usb_boot
 }
 
 #[test]
+fn modifier_overflow() {
+    setup!(
+        t,
+        _press,
+        assert_read,
+        r#"
+[matrix:2x3]
+0x00 = a
+"#,
+        {
+            t.push_layer(0);
+            assert_read!(KEY_DOWN, "leftcontrol");
+            t.modifier_count[0] = 126;
+            t.write_modifiers(1, 1, false);
+            t.write_modifiers(1, 1, false);
+            assert_read!(NONE);
+            assert_eq!(t.modifier_count[0], 127);
+            t.write_modifiers(1, -1, false);
+            assert_read!(KEY_UP, "leftcontrol");
+            assert_eq!(t.modifier_count[0], -128);
+            t.write_modifiers(1, -1, false);
+            assert_read!(NONE);
+            t.write_modifiers(1, 1, false);
+            assert_read!(KEY_DOWN, "leftcontrol");
+            assert_eq!(t.modifier_count[0], 1);
+        }
+    );
+}
+
+#[test]
 fn mouse_key_event() {
     assert_eq!(
         KeyEvent::mouse_move(0, 10, 123),

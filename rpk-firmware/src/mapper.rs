@@ -858,18 +858,33 @@ impl<
         }
     }
 
+    /// Change the state of a modifier keeping count by accumulating `count` for each modifier. Only reports
+    /// the state if crosses the 0 to 1 threshold. If pending is true then buffer the report until flushed
+    /// either by another report or [flush_modifiers].
+    ///
+    /// If the state will overlow the i8 counter a special state is entered where any -ve `count` will set
+    /// the counter to underflow and a +ve `count` at underflow will set it to `count`.
     fn write_modifiers(&mut self, modifiers: u8, count: i8, pending: bool) {
         if modifiers == 0 {
             return;
         }
         let mut pmods = 0;
+        let down = count > 0;
 
         let mut changed = 0;
         let mut bits = modifiers;
         for i in 0..8 {
             if bits & 1 == 1 {
                 let before = self.modifier_count[i] > 0;
-                self.modifier_count[i] += count;
+                if !down && self.modifier_count[i] == i8::MAX {
+                    self.modifier_count[i] = i8::MIN;
+                } else if down && self.modifier_count[i] == i8::MIN {
+                    self.modifier_count[i] = count;
+                } else {
+                    self.modifier_count[i] = self.modifier_count[i]
+                        .checked_add(count)
+                        .unwrap_or(if down { i8::MAX } else { i8::MIN });
+                }
                 if before != (self.modifier_count[i] > 0) {
                     pmods |= 1 << i;
                     changed += 1;
@@ -878,7 +893,6 @@ impl<
             bits >>= 1;
             if bits == 0 {
                 if changed != 0 {
-                    let down = count > 0;
                     if pending {
                         if down {
                             self.pending_down_modifiers |= pmods;
