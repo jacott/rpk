@@ -322,6 +322,7 @@ impl<
             *m = 0;
         }
         self.macro_running = Macro::Noop;
+        self.tapdance.clear();
         self.mouse.clear_all();
         self.layout.clear_all();
         self.dual_action = DualActionTimer::NoDual;

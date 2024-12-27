@@ -213,6 +213,14 @@ a = q
 
             assert_read!(E PendingModifiers(2, true));
             assert_read!(E KeyEvent::mouse_button(1));
+
+            t.tapdance.start(155, 6, 1);
+            t.tapdance.wait_until = 123;
+
+            t.clear_all();
+
+            assert!(!t.tapdance.is_running());
+            assert_eq!(t.tapdance.wait_until, u64::MAX);
         }
     );
 }
