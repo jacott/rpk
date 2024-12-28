@@ -1,14 +1,38 @@
+extern crate std;
+use core::cmp::min;
+use embassy_sync::{blocking_mutex::raw::NoopRawMutex, channel::Channel};
 use embassy_usb::driver::{
     Bus, ControlPipe, Driver, Endpoint, EndpointAddress, EndpointIn, EndpointInfo, EndpointOut,
     EndpointType,
 };
-
-extern crate std;
-use std::sync::{Arc, Mutex};
+use rpk_common::usb_vendor_message::MAX_BULK_LEN;
+use std::rc::Rc;
 use std::vec::Vec;
 
+#[derive(Clone)]
+pub struct MessageChannel(Rc<Channel<NoopRawMutex, Vec<u8>, 10>>);
+impl MessageChannel {
+    pub async fn send(&self, msg: Vec<u8>) {
+        self.0.send(msg).await;
+    }
+
+    pub fn get(&self) -> Vec<u8> {
+        self.0.try_receive().unwrap()
+    }
+
+    pub async fn receive(&self) -> Vec<u8> {
+        self.0.receive().await
+    }
+}
+
+impl Default for MessageChannel {
+    fn default() -> Self {
+        Self(Rc::new(Channel::new()))
+    }
+}
+
 pub struct MyEndpointIn {
-    pub messages: Arc<Mutex<Vec<Vec<u8>>>>,
+    pub messages: MessageChannel,
     pub info: EndpointInfo,
 }
 impl Endpoint for MyEndpointIn {
@@ -20,26 +44,27 @@ impl Endpoint for MyEndpointIn {
 }
 impl EndpointIn for MyEndpointIn {
     async fn write(&mut self, buf: &[u8]) -> Result<(), embassy_usb::driver::EndpointError> {
-        let mut guard = self.messages.lock().unwrap();
-        guard.push(buf.into());
+        self.messages.send(Vec::from(buf)).await;
         Ok(())
     }
 }
 impl Default for MyEndpointIn {
     fn default() -> Self {
         Self {
-            messages: Default::default(),
+            messages: MessageChannel::default(),
             info: EndpointInfo {
                 addr: EndpointAddress::from(0),
                 ep_type: EndpointType::Interrupt,
-                max_packet_size: 64,
+                max_packet_size: MAX_BULK_LEN as u16,
                 interval_ms: 1,
             },
         }
     }
 }
 
-pub struct MyEndpointOut;
+pub struct MyEndpointOut {
+    pub messages: Channel<NoopRawMutex, Vec<u8>, 10>,
+}
 impl Endpoint for MyEndpointOut {
     fn info(&self) -> &EndpointInfo {
         unimplemented!()
@@ -48,8 +73,20 @@ impl Endpoint for MyEndpointOut {
     async fn wait_enabled(&mut self) {}
 }
 impl EndpointOut for MyEndpointOut {
-    async fn read(&mut self, _buf: &mut [u8]) -> Result<usize, embassy_usb::driver::EndpointError> {
-        unimplemented!()
+    async fn read(&mut self, buf: &mut [u8]) -> Result<usize, embassy_usb::driver::EndpointError> {
+        loop {
+            let msg = self.messages.receive().await;
+            let msg = &msg[..min(buf.len(), msg.len())];
+            buf[..msg.len()].copy_from_slice(msg);
+            return Ok(msg.len());
+        }
+    }
+}
+impl Default for MyEndpointOut {
+    fn default() -> Self {
+        Self {
+            messages: Channel::new(),
+        }
     }
 }
 

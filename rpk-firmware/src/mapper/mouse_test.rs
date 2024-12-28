@@ -1,6 +1,6 @@
 use super::*;
 
-use crate::test;
+use crate::time_driver_test_stub;
 
 #[test]
 fn delta() {
@@ -25,5 +25,5 @@ fn delta() {
     assert_eq!(m.action(kc + 3, true, now), None);
     assert_eq!(m.first_down_time, 1_283);
 
-    test::set_time(now + 50_000);
+    time_driver_test_stub::set_time(now + 50_000);
 }

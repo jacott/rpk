@@ -1,5 +1,5 @@
 #[allow(unused)]
-#[cfg(all(not(test), not(feature = "defmt")))]
+#[cfg(all(not(test), not(feature = "defmt"), not(feature = "test-utils")))]
 mod no_defmt {
     #[macro_export]
     macro_rules! fixme {
@@ -99,7 +99,7 @@ mod defmt {
     }
 }
 
-#[cfg(test)]
+#[cfg(feature = "test-utils")]
 mod test {
     #[macro_export]
     macro_rules! kc {

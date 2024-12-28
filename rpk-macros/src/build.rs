@@ -170,7 +170,7 @@ fn quote_conf(source_file: &Path) -> Result<TokenStream> {
         }
 
         const _: &[u8] = include_bytes!(#source_file);
-        const ERASE_SIZE: u32 = ((flash::ERASE_SIZE as u32) >> 2) << 2;
+        const ERASE_SIZE: u32 = max32(1, (flash::ERASE_SIZE as u32) >> 2) << 2;
         const DIR_SIZE: u32 = (max32(FS_MAX_FILES * 4 + 20, ERASE_SIZE)/ERASE_SIZE)*ERASE_SIZE;
         const PAGE_SIZE: usize = max32(4, ((flash::PAGE_SIZE as u32) >> 2) << 2) as usize;
 

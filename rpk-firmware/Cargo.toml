@@ -24,13 +24,15 @@ embedded-hal = "1"
 embedded-hal-async = "1"
 embedded-storage = "0.3"
 rpk-common = { workspace = true }
-
-[dev-dependencies]
 embassy-time-driver = { workspace = true }
 embassy-time-queue-driver = { workspace = true }
+
+[dev-dependencies]
 rpk-config = { workspace = true }
 critical-section = { version = "1", features = ["std"]}
+rpk-firmware = { workspace = true, features = ["test-utils"]}
 
 [features]
 reset-on-panic = []
 defmt = ["dep:defmt", "embassy-time/defmt", "embassy-usb/defmt"]
+test-utils = []

@@ -97,6 +97,14 @@ impl<'f> RingFsReader<'f> {
     pub fn read(&mut self, data: &mut [u8]) -> Result<u32, RingFsError> {
         self.fs.read_file(&mut self.desc, data)
     }
+
+    pub fn location(&self) -> u32 {
+        self.desc.location
+    }
+
+    pub fn seek(&mut self, offset: u32) {
+        self.desc.offset = offset;
+    }
 }
 
 impl FileDescriptor {

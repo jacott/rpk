@@ -23,7 +23,7 @@ pub async fn run_mapper<
     {
         if !match fs.file_reader_by_index(0) {
             Ok(fr) => {
-                if let Err(err) = mapper.load_layout(config::ConfigFileIter::new(fr).skip(2)) {
+                if let Err(err) = mapper.load_layout(config::ConfigFileIter::new(fr)) {
                     crate::info!("error loading layout {:?}", err);
                     false
                 } else {
@@ -48,7 +48,7 @@ pub async fn run_mapper<
             crate::debug!("load layout here {}", file_location);
             match fs.file_reader_by_location(file_location) {
                 Ok(fr) => {
-                    if let Err(err) = mapper.load_layout(config::ConfigFileIter::new(fr).skip(2)) {
+                    if let Err(err) = mapper.load_layout(config::ConfigFileIter::new(fr)) {
                         crate::info!("error loading layout {:?}", err);
                         mapper.load_layout(layout_mapping.iter().copied()).unwrap();
                     }
@@ -108,7 +108,6 @@ macro_rules! rp_run_keyboard {
         static USB_BUFFERS: StaticCell<UsbBuffers> = StaticCell::new();
         static USB_CONFIG: StaticCell<UsbConfigurator> = StaticCell::new();
         static SHARED_HID_STATE: StaticCell<UsbState> = StaticCell::new();
-        static CONFIG_INTERFACE: StaticCell<ConfigInterface> = StaticCell::new();
 
         static DEBOUNCE_TUNE: AtomicU8 = AtomicU8::new(8);
 
@@ -210,8 +209,7 @@ macro_rules! rp_run_keyboard {
             CONFIG_BUILDER.shared_hid_iface(
                 usb_config, shared_hid_state, usb_builder);
 
-            let config_interface: &'static mut ConfigInterface =
-            CONFIG_INTERFACE.init(ConfigInterface::new(fs, mapper_channel.control()));
+            let config_interface = ConfigInterface::new(fs, mapper_channel.control());
 
             let (config_ep, usb_builder) = CONFIG_BUILDER.cfg_ep(config_interface, usb_builder);
 

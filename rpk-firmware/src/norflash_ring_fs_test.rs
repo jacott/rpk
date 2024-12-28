@@ -1,108 +1,15 @@
-use embedded_storage::nor_flash::{ErrorType, NorFlashError, NorFlashErrorKind, ReadNorFlash};
+use embedded_storage::nor_flash::ReadNorFlash;
 
-use crate::ring_fs::RingFs;
+use crate::{
+    flash_test_stub::{Action, FlashStubError, NorFlashStub},
+    ring_fs::RingFs,
+};
 
 use super::*;
 
 extern crate std;
 use std::format;
 use std::string::String;
-
-// TODO
-// limit number of files remembered
-
-#[derive(Debug)]
-pub enum MyError {
-    Unknown,
-}
-
-#[derive(Debug)]
-enum Action {
-    Erase(u32, u32),
-    Write(u32, std::vec::Vec<u8>),
-}
-
-pub struct NorFlashStub<'f, const FLASH_SIZE: usize> {
-    buf: [u8; FLASH_SIZE],
-    #[allow(clippy::type_complexity)]
-    observer: Option<&'f dyn Fn(Action, &mut [u8]) -> Result<(), MyError>>,
-}
-
-impl NorFlashError for MyError {
-    fn kind(&self) -> NorFlashErrorKind {
-        match self {
-            MyError::Unknown => NorFlashErrorKind::Other,
-        }
-    }
-}
-
-impl<const FLASH_SIZE: usize> ErrorType for NorFlashStub<'_, FLASH_SIZE> {
-    type Error = MyError;
-}
-
-impl<const FLASH_SIZE: usize> ReadNorFlash for NorFlashStub<'_, FLASH_SIZE> {
-    const READ_SIZE: usize = 1;
-
-    fn read(&mut self, offset: u32, bytes: &mut [u8]) -> Result<(), Self::Error> {
-        let offset = offset as usize;
-
-        for (f, t) in self.buf[offset..offset + bytes.len()]
-            .iter()
-            .zip(bytes.iter_mut())
-        {
-            *t = *f;
-        }
-
-        Ok(())
-    }
-
-    fn capacity(&self) -> usize {
-        self.buf.len()
-    }
-}
-
-impl<const FLASH_SIZE: usize> NorFlash for NorFlashStub<'_, FLASH_SIZE> {
-    const WRITE_SIZE: usize = 1;
-
-    const ERASE_SIZE: usize = 64;
-
-    fn erase(&mut self, from: u32, to: u32) -> Result<(), Self::Error> {
-        if let Some(observer) = self.observer {
-            observer(Action::Erase(from, to), &mut self.buf)?;
-        }
-        let from = from as usize;
-        let to = to as usize;
-        for b in self.buf[from..to].iter_mut() {
-            *b = 0xff;
-        }
-        Ok(())
-    }
-
-    fn write(&mut self, offset: u32, bytes: &[u8]) -> Result<(), Self::Error> {
-        if let Some(observer) = self.observer {
-            observer(Action::Write(offset, bytes.into()), &mut self.buf)?;
-        }
-        let offset = offset as usize;
-
-        for (t, f) in self.buf[offset..offset + bytes.len()]
-            .iter_mut()
-            .zip(bytes.iter())
-        {
-            *t &= *f;
-        }
-
-        Ok(())
-    }
-}
-
-impl<const FLASH_SIZE: usize> NorFlashStub<'_, FLASH_SIZE> {
-    pub(crate) fn new() -> Self {
-        Self {
-            buf: [0; FLASH_SIZE],
-            observer: None,
-        }
-    }
-}
 
 const DEFAULT_DSIZE: usize = 512;
 const DIR_SIZE: u32 = 64;
@@ -116,7 +23,7 @@ pub(crate) type TestFs<'d, 'f, const K: usize> = TestMaxFilesFs<'d, 'f, K, MAX_F
 
 #[test]
 fn ring_fs() {
-    let mut stub = DefaultNorFlashStub::new();
+    let mut stub = DefaultNorFlashStub::default();
 
     let fs = TestFs::new(&mut stub).unwrap();
     let fs: &dyn RingFs = &fs;
@@ -141,7 +48,7 @@ fn ring_fs() {
 
 #[test]
 fn limit_max_files() {
-    let mut stub = NorFlashStub::<DEFAULT_DSIZE>::new();
+    let mut stub = NorFlashStub::<DEFAULT_DSIZE>::default();
     {
         let fs = TestMaxFilesFs::<'_, '_, DEFAULT_DSIZE, 6>::new(&mut stub).unwrap();
         for i in 0..8 {
@@ -162,7 +69,7 @@ fn limit_max_files() {
 
 #[test]
 fn recycle_dir_page() {
-    let mut stub = NorFlashStub::<DEFAULT_DSIZE>::new();
+    let mut stub = NorFlashStub::<DEFAULT_DSIZE>::default();
     let buf: [u8; 100] = core::array::from_fn(|i| i as u8);
     {
         let fs = TestFs::new(&mut stub).unwrap();
@@ -231,7 +138,7 @@ fn recycle_dir_page() {
 
 #[test]
 fn marker_spans_end_recycle_dir_page() {
-    let mut stub = NorFlashStub::<DEFAULT_DSIZE>::new();
+    let mut stub = NorFlashStub::<DEFAULT_DSIZE>::default();
     let buf: [u8; 200] = core::array::from_fn(|i| i as u8);
 
     let active = RefCell::new(0);
@@ -242,7 +149,7 @@ fn marker_spans_end_recycle_dir_page() {
             match a {
                 Action::Write(128, data) if data[..4] == oldest_offset => {
                     buf[128..132].copy_from_slice(&oldest_offset);
-                    return Err(MyError::Unknown);
+                    return Err(FlashStubError::Unknown);
                 }
                 _ => {}
             }
@@ -298,9 +205,9 @@ fn marker_spans_end_recycle_dir_page() {
 
 #[test]
 fn nor_flash_stub() {
-    let _err = MyError::Unknown;
+    let _err = FlashStubError::Unknown;
 
-    let mut stub: NorFlashStub<256> = NorFlashStub::new();
+    let mut stub: NorFlashStub<256> = NorFlashStub::default();
 
     const BASE: u32 = 10;
 
@@ -331,13 +238,20 @@ fn nor_flash_stub() {
     stub.read(BASE, &mut buf).unwrap();
     assert_eq!(&buf, &[18, 66, 132, 72]);
 }
-static FORMATTED: [u8; 16] = [
-    110, 15, 172, 11, 64, 0, 0, 1, 0, 2, 0, 0, 255, 255, 255, 255,
+
+const FORMATTED: [u8; 16] = [
+    110, 15, 172, 11, 64, 0, 0, 2, 0, 2, 0, 0, 255, 255, 255, 255,
 ];
+
+fn header_pattern(suffix: &[u8]) -> [u8; FORMATTED.len()] {
+    let mut pattern = FORMATTED;
+    pattern[FORMATTED.len() - suffix.len()..].copy_from_slice(suffix);
+    pattern
+}
 
 #[test]
 fn uninitialized_disk() {
-    let mut stub = NorFlashStub::<DEFAULT_DSIZE>::new();
+    let mut stub = NorFlashStub::<DEFAULT_DSIZE>::default();
 
     {
         let _ = TestFs::new(&mut stub).unwrap();
@@ -359,10 +273,7 @@ fn uninitialized_disk() {
             assert_eq!(inner.next_file_index, 16);
             assert_eq!(inner.free_index, 256);
         }
-        assert_eq!(
-            &stub.buf[..16],
-            &[110, 15, 172, 11, 64, 0, 0, 1, 0, 2, 0, 0, 0, 1, 0, 0]
-        );
+        assert_eq!(&stub.buf[..16], &header_pattern(&[0, 1, 0, 0]));
     }
 
     // format disk
@@ -388,10 +299,7 @@ fn uninitialized_disk() {
 
     {
         let _ = TestFs::new(&mut stub).unwrap();
-        assert_eq!(
-            &stub.buf[64..80],
-            &[110, 15, 172, 11, 64, 0, 0, 1, 0, 2, 0, 0, 255, 255, 255, 0]
-        );
+        assert_eq!(&stub.buf[64..80], &header_pattern(&[255, 255, 255, 0]));
     }
 }
 
@@ -413,7 +321,7 @@ fn align() {
 
 #[test]
 fn reader_writer_conflicts() {
-    let mut stub = NorFlashStub::<DEFAULT_DSIZE>::new();
+    let mut stub = NorFlashStub::<DEFAULT_DSIZE>::default();
 
     let fs = TestFs::new(&mut stub).unwrap();
     {
@@ -457,8 +365,38 @@ fn reader_writer_conflicts() {
 }
 
 #[test]
+fn seek() {
+    let mut stub = NorFlashStub::<DEFAULT_DSIZE>::default();
+
+    let fs = TestFs::new(&mut stub).unwrap();
+    {
+        let mut fw = fs.create_file().unwrap();
+        fw.write(&8u32.to_le_bytes()).unwrap();
+        fw.write(&[6, 5, 4, 3]).unwrap();
+
+        let mut fr = fs.file_reader_by_index(0).unwrap();
+        let mut buf = [0];
+
+        fr.read(&mut buf).unwrap();
+        assert_eq!(buf[0], 8);
+        fr.seek(4);
+        fr.read(&mut buf).unwrap();
+        assert_eq!(buf[0], 6);
+
+        fr.seek(0);
+        fr.read(&mut buf).unwrap();
+        assert_eq!(buf[0], 8);
+
+        fr.seek(40);
+        let err = fr.read(&mut buf).err().unwrap();
+        assert!(matches!(err, RingFsError::OutOfBounds));
+        assert!(fr.is_closed());
+    }
+}
+
+#[test]
 fn create_file() {
-    let mut stub = NorFlashStub::<DEFAULT_DSIZE>::new();
+    let mut stub = NorFlashStub::<DEFAULT_DSIZE>::default();
     {
         let fs = TestFs::new(&mut stub).unwrap();
 
@@ -514,7 +452,7 @@ fn create_file() {
 
 #[test]
 fn fill_disk() {
-    let mut stub = NorFlashStub::<DEFAULT_DSIZE>::new();
+    let mut stub = NorFlashStub::<DEFAULT_DSIZE>::default();
     {
         let fs = TestFs::new(&mut stub).unwrap();
         let buf: [u8; 154] = core::array::from_fn(|i| {
@@ -576,7 +514,7 @@ fn fill_disk() {
 
 #[test]
 fn recover_store_from_dir() {
-    let mut stub = NorFlashStub::<DEFAULT_DSIZE>::new();
+    let mut stub = NorFlashStub::<DEFAULT_DSIZE>::default();
     {
         let fs = TestFs::new(&mut stub).unwrap();
         let buf: [u8; 154] = core::array::from_fn(|i| {
@@ -620,7 +558,7 @@ fn recover_store_from_dir() {
 
 #[test]
 fn recover_dir_from_store() {
-    let mut stub = NorFlashStub::<DEFAULT_DSIZE>::new();
+    let mut stub = NorFlashStub::<DEFAULT_DSIZE>::default();
 
     let active = RefCell::new(0);
     let a1 = &active;
@@ -629,13 +567,13 @@ fn recover_dir_from_store() {
             1 => {
                 if let Action::Erase(128, 192) = a {
                     //                _buf[0] = 0;
-                    return Err(MyError::Unknown);
+                    return Err(FlashStubError::Unknown);
                 }
             }
             2 => {
                 if let Action::Erase(0, 64) = a {
                     _buf[0] = 0;
-                    return Err(MyError::Unknown);
+                    return Err(FlashStubError::Unknown);
                 }
             }
             _ => {}

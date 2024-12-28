@@ -1,0 +1,71 @@
+use std::sync::{Arc, Mutex};
+
+use super::*;
+
+type BulkData = Vec<(u8, Vec<u8>)>;
+
+#[derive(Default)]
+struct TestInterface {
+    out: Arc<Mutex<BulkData>>,
+    inp: Arc<Mutex<BulkData>>,
+}
+impl TestInterface {
+    fn add_in(&self, ep: u8, vec: Vec<u8>) {
+        let mut guard = self.inp.lock().unwrap();
+        guard.push((ep, vec));
+    }
+}
+
+impl KeyboardInterface for TestInterface {
+    fn bulk_out(&self, endpoint: u8, buf: Vec<u8>) -> Result<()> {
+        let mut guard = self.out.lock().unwrap();
+        guard.push((endpoint, buf));
+        Ok(())
+    }
+
+    fn bulk_in(&self, endpoint: u8, max_len: u16) -> Result<Vec<u8>> {
+        let mut guard = self.inp.lock().unwrap();
+        let (ep, msg) = guard.pop().unwrap_or((endpoint, vec![]));
+        assert_eq!(ep, endpoint);
+        assert!(max_len as usize > msg.len());
+        Ok(msg)
+    }
+}
+
+#[test]
+fn file_info_from() {
+    let now = Utc::now();
+    let mut data = vec![];
+    data.extend_from_slice(&(54321u32).to_le_bytes());
+    data.extend_from_slice(&(123u32).to_le_bytes());
+    data.extend_from_slice(&(now.timestamp_micros() / 1000).to_le_bytes());
+    data.push(FileType::Config.as_u8());
+    data.push(5);
+    data.extend_from_slice(b"file1notthis");
+
+    let ans = FileInfo::from(data.as_slice());
+    assert_eq!((now - ans.timestamp).num_milliseconds(), 0);
+    assert_eq!(ans.length, 123);
+    assert_eq!(ans.location, 54321);
+    assert_eq!(ans.index, 0);
+    assert!(matches!(ans.file_type, FileType::Config));
+    assert_eq!(ans.filename, "file1");
+}
+
+#[test]
+fn list_files() {
+    let kc = KeyboardCtl::<TestInterface> {
+        epout: 1,
+        epin: 2,
+        intf: Default::default(),
+    };
+
+    let mut data = std::vec![0, 1, 2, 3, 50, 0, 0, 0, 1, 2, 3, 4];
+    data.extend_from_slice(b"filename");
+
+    kc.intf.add_in(2, data);
+
+    let files: Vec<Result<FileInfo>> = kc.list_files().collect();
+
+    assert_eq!(files.len(), 1);
+}

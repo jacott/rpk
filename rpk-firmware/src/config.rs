@@ -2,9 +2,7 @@ use crate::{
     firmware_functions, mapper,
     ring_fs::{RingFs, RingFsReader, RingFsWriter},
 };
-use rpk_common::usb_vendor_message::{
-    CLOSE_SAVE_CONFIG, OPEN_SAVE_CONFIG, RESET_KEYBOARD, RESET_TO_USB_BOOT,
-};
+use rpk_common::usb_vendor_message::{self as msg, MAX_BULK_LEN};
 
 enum ReceiveState {
     Idle,
@@ -28,30 +26,45 @@ impl<'f, 'c> ConfigInterface<'f, 'c> {
         }
     }
 
-    pub async fn receive(&mut self, data: &[u8]) {
+    pub async fn receive(&mut self, data: &[u8], write_buf: &mut [u8]) -> usize {
         match self.rcv_state {
             ReceiveState::Idle => match *data.first().unwrap_or(&0) {
-                OPEN_SAVE_CONFIG if data.len() == 1 => {
+                msg::OPEN_SAVE_CONFIG if data.len() == 1 => {
                     self.rcv_state = ReceiveState::ConfigData;
                 }
-                RESET_KEYBOARD if data.len() == 1 => {
+                msg::RESET_KEYBOARD if data.len() == 1 => {
                     firmware_functions::reset();
                 }
-                RESET_TO_USB_BOOT if data.len() == 1 => {
+                msg::RESET_TO_USB_BOOT if data.len() == 1 => {
                     firmware_functions::reset_to_usb_boot();
+                }
+                msg::READ_FILE_BY_INDEX if data.len() == 5 => {
+                    if let Ok(mut fr) = self
+                        .fs
+                        .file_reader_by_index(u32::from_le_bytes(data[1..].try_into().unwrap()))
+                    {
+                        write_buf[..4].copy_from_slice(&fr.location().to_le_bytes());
+
+                        if let Ok(n) = fr.read(&mut write_buf[4..]) {
+                            return n as usize + 4;
+                        }
+                    }
+
+                    write_buf[0] = 0;
+                    return 1;
                 }
                 n => {
                     crate::error!("Unexpected msg [{}; {}]", n, data.len())
                 }
             },
             ReceiveState::ConfigData => match *data.first().unwrap_or(&0) {
-                _ if data.len() == 64 => {
+                _ if data.len() == MAX_BULK_LEN as usize => {
                     self.file_write(data);
                 }
-                OPEN_SAVE_CONFIG if data.len() == 1 => {
+                msg::OPEN_SAVE_CONFIG if data.len() == 1 => {
                     self.rcv_state = ReceiveState::ConfigData;
                 }
-                CLOSE_SAVE_CONFIG => {
+                msg::CLOSE_SAVE_CONFIG => {
                     let data = data.split_at(1).1;
                     self.file_write(data);
                     if let Some(fw) = self.fw.take() {
@@ -65,6 +78,7 @@ impl<'f, 'c> ConfigInterface<'f, 'c> {
                 }
             },
         }
+        0
     }
 
     fn file_write(&mut self, data: &[u8]) {
@@ -100,7 +114,11 @@ impl Iterator for ConfigFileIter<'_> {
 }
 
 impl<'f> ConfigFileIter<'f> {
-    pub fn new(reader: RingFsReader<'f>) -> Self {
+    pub fn new(mut reader: RingFsReader<'f>) -> Self {
+        reader.seek(13);
+        let mut buf = [0];
+        reader.read(&mut buf).ok(); // filename length
+        reader.seek(14 + buf[0] as u32);
         Self(reader)
     }
 }

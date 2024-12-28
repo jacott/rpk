@@ -5,7 +5,7 @@ use embedded_storage::nor_flash::{self, NorFlash};
 use crate::ring_fs::{FileDescriptor, RingFs, RingFsError, RingFsReader, RingFsWriter};
 
 const FORMAT_MAGIC_NUMBER: [u8; 4] = 0x6e0fac0bu32.to_be_bytes();
-const FORMAT_VERSION: u32 = 1;
+const FORMAT_VERSION: u8 = 2;
 
 const END_PAGE_PATTERN: [u8; 4] = 0x00ffff00u32.to_le_bytes();
 
@@ -320,6 +320,9 @@ impl<
         desc: &mut FileDescriptor,
         data: &mut [u8],
     ) -> Result<u32, RingFsError> {
+        if desc.offset > desc.len {
+            return Err(RingFsError::OutOfBounds);
+        }
         let rem = (desc.len - desc.offset) as usize;
 
         let data = if rem < data.len() {
@@ -572,7 +575,7 @@ impl<
     }
 
     fn header_sequence() -> [u8; 12] {
-        let format_version = ((FORMAT_VERSION << 24) | DIR_SIZE).to_le_bytes();
+        let format_version = (((FORMAT_VERSION as u32) << 24) | DIR_SIZE).to_le_bytes();
 
         let words = [FORMAT_MAGIC_NUMBER, format_version, Self::DISK_SIZE_BYTES];
         let mut iter = words.iter().flatten();

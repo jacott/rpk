@@ -1,7 +1,7 @@
 use embassy_futures::block_on;
 use embassy_time::{Duration, Instant};
 
-use crate::test::usb_test_stub::{MyDriver, MyEndpointIn};
+use crate::usb_test_stub::{MyDriver, MyEndpointIn};
 
 use super::*;
 
@@ -12,7 +12,7 @@ macro_rules! setup {
     ($messages:ident, $rep:ident, $x:tt) => {
         block_on(async {
             let ep_in = MyEndpointIn::default();
-            let $messages = ep_in.messages.clone();
+            let $messages = &ep_in.messages.clone();
             let hid_writer = HidWriter::<'_, MyDriver, 34>::new(ep_in);
             let mut $rep = Reporter::new(hid_writer);
 
@@ -25,8 +25,7 @@ macro_rules! setup {
 fn write_report() {
     setup!(messages, reporter, {
         reporter.write_report(&[1, 2, 3]).await;
-        let guard = messages.lock().unwrap();
-        assert_eq!(&guard[0], &vec![1, 2, 3]);
+        assert_eq!(&messages.get(), &vec![1, 2, 3]);
     });
 }
 
@@ -40,9 +39,8 @@ fn delay() {
         assert!(d >= Duration::from_millis(1));
         reporter.report(KeyEvent::Basic(0xe2, true)).await;
 
-        let guard = messages.lock().unwrap();
-        assert_eq!(&guard[0][..5], &vec![6, 0, 16, 0, 0]);
-        assert_eq!(&guard[1][..5], &vec![6, 4, 16, 0, 0]);
+        assert_eq!(&messages.get()[..5], &vec![6, 0, 16, 0, 0]);
+        assert_eq!(&messages.get()[..5], &vec![6, 4, 16, 0, 0]);
     });
 }
 
@@ -55,11 +53,10 @@ fn basic_report() {
         reporter.report(KeyEvent::Basic(4, false)).await;
         reporter.report(KeyEvent::Basic(0xe2, true)).await;
 
-        let guard = messages.lock().unwrap();
-        assert_eq!(guard[0].len(), 34);
-        assert_eq!(&guard[1][..5], &vec![6, 0, 48, 0, 0]);
-        assert_eq!(&guard[2][..5], &vec![6, 4, 48, 0, 0]);
-        assert_eq!(&guard[3][..5], &vec![6, 4, 32, 0, 0]);
+        assert_eq!(messages.get().len(), 34);
+        assert_eq!(&messages.get()[..5], &vec![6, 0, 48, 0, 0]);
+        assert_eq!(&messages.get()[..5], &vec![6, 4, 48, 0, 0]);
+        assert_eq!(&messages.get()[..5], &vec![6, 4, 32, 0, 0]);
     });
 }
 
@@ -76,18 +73,17 @@ fn modifiers_report() {
         reporter.report(KeyEvent::Pending).await;
         reporter.report(KeyEvent::Clear).await;
 
-        let guard = messages.lock().unwrap();
-        assert_eq!(guard.len(), 9);
-        assert_eq!(guard[0].len(), 34);
-        assert_eq!(&guard[0][..5], &vec![6, 6, 0, 0, 0]);
-        assert_eq!(&guard[1][..5], &vec![6, 14, 0, 0, 0]);
-        assert_eq!(&guard[2][..5], &vec![6, 12, 0, 0, 0]);
-        assert_eq!(&guard[3][..5], &vec![6, 14, 0, 0, 1]);
-        assert_eq!(&guard[4][..5], &vec![6, 11, 0, 0, 1]);
-        assert_eq!(&guard[5], &vec![2, 0, 0, 0, 0, 0]);
-        assert_eq!(&guard[6], &vec![3, 0, 0]);
-        assert_eq!(&guard[7], &vec![4, 0, 0]);
-        assert_eq!(&guard[8][..5], &vec![6, 0, 0, 0, 0]);
+        let msg = messages.get();
+        assert_eq!(msg.len(), 34);
+        assert_eq!(&msg[..5], &vec![6, 6, 0, 0, 0]);
+        assert_eq!(&messages.get()[..5], &vec![6, 14, 0, 0, 0]);
+        assert_eq!(&messages.get()[..5], &vec![6, 12, 0, 0, 0]);
+        assert_eq!(&messages.get()[..5], &vec![6, 14, 0, 0, 1]);
+        assert_eq!(&messages.get()[..5], &vec![6, 11, 0, 0, 1]);
+        assert_eq!(&messages.get(), &vec![2, 0, 0, 0, 0, 0]);
+        assert_eq!(&messages.get(), &vec![3, 0, 0]);
+        assert_eq!(&messages.get(), &vec![4, 0, 0]);
+        assert_eq!(&messages.get()[..5], &vec![6, 0, 0, 0, 0]);
     });
 }
 
@@ -98,11 +94,11 @@ fn consumer_report() {
         reporter.report(KeyEvent::Consumer(104)).await;
         reporter.report(KeyEvent::Consumer(0)).await;
 
-        let guard = messages.lock().unwrap();
-        assert_eq!(guard[0].len(), 3);
-        assert_eq!(&guard[0], &vec![4, 105, 1]);
-        assert_eq!(&guard[1], &vec![4, 104, 0]);
-        assert_eq!(&guard[2], &vec![4, 0, 0]);
+        let msg = messages.get();
+        assert_eq!(msg.len(), 3);
+        assert_eq!(&msg, &vec![4, 105, 1]);
+        assert_eq!(&messages.get(), &vec![4, 104, 0]);
+        assert_eq!(&messages.get(), &vec![4, 0, 0]);
     });
 }
 
@@ -113,10 +109,10 @@ fn sys_ctl_report() {
         reporter.report(KeyEvent::SysCtl(104)).await;
         reporter.report(KeyEvent::SysCtl(0)).await;
 
-        let guard = messages.lock().unwrap();
-        assert_eq!(guard[0].len(), 3);
-        assert_eq!(&guard[0], &vec![3, 105, 1]);
-        assert_eq!(&guard[1], &vec![3, 104, 0]);
-        assert_eq!(&guard[2], &vec![3, 0, 0]);
+        let msg = messages.get();
+        assert_eq!(msg.len(), 3);
+        assert_eq!(&msg, &vec![3, 105, 1]);
+        assert_eq!(&messages.get(), &vec![3, 104, 0]);
+        assert_eq!(&messages.get(), &vec![3, 0, 0]);
     });
 }

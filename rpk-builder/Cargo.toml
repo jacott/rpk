@@ -22,6 +22,13 @@ embassy-sync = { workspace = true }
 embassy-usb = { workspace = true }
 rpk-firmware = { workspace = true }
 rpk-macros = { workspace = true }
+rpk-common = { workspace = true }
+
+[dev-dependencies]
+embassy-futures = { workspace = true }
+rpk-firmware = { workspace = true, features = ["test-utils"] }
+critical-section = { version = "1", features = ["std"]}
+embassy-time = { workspace = true }
 
 [dependencies.embassy-rp]
 version = "0.2"

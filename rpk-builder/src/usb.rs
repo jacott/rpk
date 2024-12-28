@@ -1,9 +1,10 @@
 use embassy_usb::{
     class::hid::{ReportId, RequestHandler},
     control::OutResponse,
-    driver::{Driver, Endpoint, EndpointOut},
+    driver::{Driver, Endpoint, EndpointIn, EndpointOut},
     Builder,
 };
+use rpk_common::usb_vendor_message::MAX_BULK_LEN;
 use rpk_firmware::{
     config::ConfigInterface,
     hid,
@@ -55,13 +56,14 @@ impl ConfigBuilder {
 
     pub fn cfg_ep<'d, D: Driver<'d>>(
         &self,
-        config_interface: &'d mut ConfigInterface<'d, 'd>,
+        config_interface: ConfigInterface<'d, 'd>,
         mut usb_builder: Builder<'d, D>,
     ) -> (ConfigEndPoint<'d, D>, Builder<'d, D>) {
         let mut function = usb_builder.function(0xFF, 0, 0);
         let mut interface = function.interface();
         let mut alt = interface.alt_setting(0xFF, 0, 0, None);
-        let read_ep = alt.endpoint_bulk_out(64);
+        let read_ep = alt.endpoint_bulk_out(MAX_BULK_LEN);
+        let write_ep = alt.endpoint_bulk_in(MAX_BULK_LEN);
 
         drop(function);
 
@@ -69,6 +71,7 @@ impl ConfigBuilder {
             ConfigEndPoint {
                 config_interface,
                 read_ep,
+                write_ep,
             },
             usb_builder,
         )
@@ -76,19 +79,28 @@ impl ConfigBuilder {
 }
 
 pub struct ConfigEndPoint<'d, D: Driver<'d>> {
-    config_interface: &'d mut ConfigInterface<'d, 'd>,
+    config_interface: ConfigInterface<'d, 'd>,
     read_ep: D::EndpointOut,
+    write_ep: D::EndpointIn,
 }
 impl<'d, D: Driver<'d>> ConfigEndPoint<'d, D> {
     pub async fn run(&mut self) {
+        let mut buf = [0; MAX_BULK_LEN as usize];
+        let mut write_buf = [0; MAX_BULK_LEN as usize];
         loop {
             self.read_ep.wait_enabled().await;
             loop {
-                let mut buf = [0; 64];
                 match self.read_ep.read(&mut buf).await {
                     Ok(n) => {
                         if n > 0 {
-                            self.config_interface.receive(&buf[..n]).await
+                            let r = self
+                                .config_interface
+                                .receive(&buf[..n], &mut write_buf)
+                                .await;
+
+                            if r != 0 {
+                                self.write_ep.write(&write_buf[..r]).await.ok();
+                            }
                         }
                     }
                     Err(_) => break,
