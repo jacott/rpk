@@ -19,8 +19,9 @@ pub struct NorflashRingFs<
     const SIZE: usize,
     const DIR_SIZE: u32,
     const PAGE_SIZE: usize,
+    const MAX_FILES: u32,
 > {
-    inner: RefCell<NorflashRingFsInner<'d, F, BASE, SIZE, DIR_SIZE, PAGE_SIZE>>,
+    inner: RefCell<NorflashRingFsInner<'d, F, BASE, SIZE, DIR_SIZE, PAGE_SIZE, MAX_FILES>>,
 }
 
 impl<
@@ -30,7 +31,8 @@ impl<
         const SIZE: usize,
         const DIR_SIZE: u32,
         const PAGE_SIZE: usize,
-    > RingFs<'d> for NorflashRingFs<'d, F, BASE, SIZE, DIR_SIZE, PAGE_SIZE>
+        const MAX_FILES: u32,
+    > RingFs<'d> for NorflashRingFs<'d, F, BASE, SIZE, DIR_SIZE, PAGE_SIZE, MAX_FILES>
 {
     fn create_file(&'d self) -> Result<RingFsWriter<'d>, RingFsError> {
         let mut inner = self.inner.borrow_mut();
@@ -70,6 +72,7 @@ struct NorflashRingFsInner<
     const SIZE: usize,
     const DIR_SIZE: u32,
     const PAGE_SIZE: usize,
+    const MAX_FILES: u32,
 > {
     flash: &'d mut F,
     next_file_index: u32,
@@ -88,7 +91,8 @@ impl<
         const SIZE: usize,
         const DIR_SIZE: u32,
         const PAGE_SIZE: usize,
-    > NorflashRingFs<'d, F, BASE, SIZE, DIR_SIZE, PAGE_SIZE>
+        const MAX_FILES: u32,
+    > NorflashRingFs<'d, F, BASE, SIZE, DIR_SIZE, PAGE_SIZE, MAX_FILES>
 {
     pub fn new(flash: &'d mut F) -> Result<Self, RingFsError> {
         Ok(Self {
@@ -97,20 +101,36 @@ impl<
     }
 }
 
+const fn max32(a: u32, b: u32) -> u32 {
+    if a < b {
+        b
+    } else {
+        a
+    }
+}
+
 const fn assert_fs_params<
     const BASE: usize,
     const SIZE: usize,
     const DIR_SIZE: u32,
     const PAGE_SIZE: usize,
+    const MAX_FILES: u32,
 >(
     erase_size: u32,
 ) -> u32 {
+    assert!(PAGE_SIZE >= 4);
+    assert!(PAGE_SIZE % 4 == 0);
+    let erase_size = max32(4, (erase_size >> 2) << 2);
+    let erase_size = max32(
+        erase_size,
+        (max32(MAX_FILES * 4 + PREAMBLE_LEN + 8, erase_size) / erase_size) * erase_size,
+    );
+
     assert!(BASE % DIR_SIZE as usize == 0);
     assert!(SIZE % erase_size as usize == 0);
-    assert!(erase_size <= DIR_SIZE);
+    assert!(DIR_SIZE % erase_size == 0);
     assert!(PAGE_SIZE as u32 <= erase_size);
     assert!(erase_size % PAGE_SIZE as u32 == 0);
-    assert!(PAGE_SIZE >= 4);
     assert!(DIR_SIZE % erase_size == 0);
     assert!(DIR_SIZE >= 20);
     erase_size
@@ -131,10 +151,11 @@ impl<
         const SIZE: usize,
         const DIR_SIZE: u32,
         const PAGE_SIZE: usize,
-    > NorflashRingFsInner<'d, F, BASE, SIZE, DIR_SIZE, PAGE_SIZE>
+        const MAX_FILES: u32,
+    > NorflashRingFsInner<'d, F, BASE, SIZE, DIR_SIZE, PAGE_SIZE, MAX_FILES>
 {
     const ERASE_SIZE: u32 =
-        assert_fs_params::<BASE, SIZE, DIR_SIZE, PAGE_SIZE>(F::ERASE_SIZE as u32);
+        assert_fs_params::<BASE, SIZE, DIR_SIZE, PAGE_SIZE, MAX_FILES>(F::ERASE_SIZE as u32);
     const DISK_SIZE_BYTES: [u8; 4] = (SIZE as u32).to_le_bytes();
     const FIRST_FILE_OFFSET: u32 = Self::align_next_page(DIR_SIZE + PREAMBLE_LEN);
 
@@ -192,11 +213,11 @@ impl<
     }
 
     fn file_reader(&mut self, index: u32) -> Result<FileDescriptor, RingFsError> {
-        let dir_index = self.next_file_index;
-        if index * 4 + PREAMBLE_LEN >= dir_index {
+        if index * 4 + self.oldest_file_index >= self.next_file_index {
             return Err(RingFsError::FileNotFound);
         }
-        let start = self.read_u32(dir_index - index * 4 - 4)?;
+        let dir_location = self.next_file_index - index * 4 - 4;
+        let start = self.read_u32(dir_location)?;
 
         self.file_reader_by_offset(start)
     }
@@ -400,6 +421,10 @@ impl<
             self.recycle_dir_page()?;
         }
         let index = self.next_file_index;
+        while ((index - self.oldest_file_index + 4) >> 2) >= MAX_FILES {
+            self.delete_oldest()?;
+        }
+
         self.next_file_index += 4;
         Ok(index)
     }

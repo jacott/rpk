@@ -66,6 +66,7 @@ fn compile_error(message: &str) -> TokenStream {
         const FLASH_SIZE: usize = 0;
         const FS_BASE: usize = 0;
         const FS_SIZE: usize = 0;
+        const FS_MAX_FILES: u32 = 0;
 
         static CONFIG_BUILDER: rpk_builder::usb::ConfigBuilder = rpk_builder::usb::ConfigBuilder {
             vendor_id: 0,
@@ -81,7 +82,7 @@ fn compile_error(message: &str) -> TokenStream {
 
         type Flash = flash::Flash<'static, FLASH, Async, 4096>;
         type Rfs = NorflashRingFs<'static, Flash, 0, 4096,
-          { flash::ERASE_SIZE as u32 }, { flash::PAGE_SIZE }, >;
+          { flash::ERASE_SIZE as u32 }, { flash::PAGE_SIZE }, FS_MAX_FILES >;
     }
 }
 
@@ -160,11 +161,21 @@ fn quote_conf(source_file: &Path) -> Result<TokenStream> {
         #defs
         #macros
 
+        const fn max32(a: u32, b: u32) -> u32 {
+            if a < b {
+                b
+            } else {
+                a
+            }
+        }
+
         const _: &[u8] = include_bytes!(#source_file);
+        const ERASE_SIZE: u32 = ((flash::ERASE_SIZE as u32) >> 2) << 2;
+        const DIR_SIZE: u32 = (max32(FS_MAX_FILES * 4 + 20, ERASE_SIZE)/ERASE_SIZE)*ERASE_SIZE;
+        const PAGE_SIZE: usize = max32(4, ((flash::PAGE_SIZE as u32) >> 2) << 2) as usize;
 
         type Flash = flash::Flash<'static, FLASH, Async, FLASH_SIZE>;
-        type Rfs = NorflashRingFs<'static, Flash, FS_BASE, FS_SIZE,
-          { flash::ERASE_SIZE as u32 }, { flash::PAGE_SIZE }, >;
+        type Rfs = NorflashRingFs<'static, Flash, FS_BASE, FS_SIZE, DIR_SIZE, PAGE_SIZE, FS_MAX_FILES>;
     };
 
     Ok(result)
@@ -294,6 +305,7 @@ fn parse_firmware(config: &KeyboardConfig) -> Result<(TokenStream, TokenStream, 
     parse!(flash_size);
     parse!(fs_base);
     parse!(fs_size);
+    parse!(fs_max_files);
 
     get!(chip);
     parse!(PIN: input_pins);
@@ -339,6 +351,7 @@ fn parse_firmware(config: &KeyboardConfig) -> Result<(TokenStream, TokenStream, 
             const FLASH_SIZE: usize = #flash_size;
             const FS_BASE: usize = #fs_base;
             const FS_SIZE: usize = #fs_size;
+            const FS_MAX_FILES: u32 = #fs_max_files;
 
             static CONFIG_BUILDER: rpk_builder::usb::ConfigBuilder = rpk_builder::usb::ConfigBuilder {
                 vendor_id: #vendor_id,

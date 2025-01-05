@@ -107,10 +107,12 @@ impl<const FLASH_SIZE: usize> NorFlashStub<'_, FLASH_SIZE> {
 const DEFAULT_DSIZE: usize = 512;
 const DIR_SIZE: u32 = 64;
 const PAGE_SIZE: usize = 16;
+const MAX_FILES: u32 = 20;
 
 pub(crate) type DefaultNorFlashStub<'f> = NorFlashStub<'f, DEFAULT_DSIZE>;
-pub(crate) type TestFs<'d, 'f, const K: usize> =
-    NorflashRingFs<'d, NorFlashStub<'f, K>, 0, K, DIR_SIZE, PAGE_SIZE>;
+pub(crate) type TestMaxFilesFs<'d, 'f, const K: usize, const M: u32> =
+    NorflashRingFs<'d, NorFlashStub<'f, K>, 0, K, DIR_SIZE, PAGE_SIZE, M>;
+pub(crate) type TestFs<'d, 'f, const K: usize> = TestMaxFilesFs<'d, 'f, K, MAX_FILES>;
 
 #[test]
 fn ring_fs() {
@@ -135,6 +137,27 @@ fn ring_fs() {
     assert!(fr.is_closed());
     fr.close();
     assert!(fr.is_closed());
+}
+
+#[test]
+fn limit_max_files() {
+    let mut stub = NorFlashStub::<DEFAULT_DSIZE>::new();
+    {
+        let fs = TestMaxFilesFs::<'_, '_, DEFAULT_DSIZE, 6>::new(&mut stub).unwrap();
+        for i in 0..8 {
+            let mut fw = fs.create_file().unwrap();
+            fw.write(&5_u32.to_le_bytes()).unwrap();
+            fw.write(&[i as u8]).unwrap();
+        }
+        let mut i = 0;
+        loop {
+            let Ok(_fr) = fs.file_reader_by_index(i) else {
+                break;
+            };
+            i += 1;
+        }
+        assert_eq!(i, 5);
+    }
 }
 
 #[test]
@@ -374,7 +397,7 @@ fn uninitialized_disk() {
 
 #[test]
 fn align() {
-    type FS<'a> = NorflashRingFsInner<'a, NorFlashStub<'a, 256>, 0, 256, 64, 16>;
+    type FS<'a> = NorflashRingFsInner<'a, NorFlashStub<'a, 256>, 0, 256, 64, 16, 6>;
 
     assert_eq!(FS::align_start_erase(63), 0);
     assert_eq!(FS::align_start_erase(64), 64);
@@ -727,8 +750,9 @@ fn disk_stats<
     const SIZE: usize,
     const DIR_SIZE: u32,
     const PAGE_SIZE: usize,
+    const MAX_FILES: u32,
 >(
-    fs: &NorflashRingFs<NorFlashStub<FSIZE>, BASE, SIZE, DIR_SIZE, PAGE_SIZE>,
+    fs: &NorflashRingFs<NorFlashStub<FSIZE>, BASE, SIZE, DIR_SIZE, PAGE_SIZE, MAX_FILES>,
 ) -> String {
     let mut inner = fs.inner.borrow_mut();
     let mut buf = [0; SIZE];
