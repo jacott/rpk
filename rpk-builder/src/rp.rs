@@ -1,63 +1,5 @@
-use crate::{config, key_scanner, mapper, ring_fs, NoopRawMutex};
 pub use core::sync::atomic::AtomicU8;
 pub use embassy_rp::{bind_interrupts, flash, gpio, init, peripherals, rom_data, usb};
-
-pub async fn run_mapper<
-    const ROW_COUNT: usize,
-    const COL_COUNT: usize,
-    const LAYOUT_MAX: usize,
-    const SCANNER_BUFFER_SIZE: usize,
-    const REPORT_BUFFER_SIZE: usize,
->(
-    layout_mapping: &'static [u16],
-    key_scan_channel: &'static key_scanner::KeyScannerChannel<NoopRawMutex, SCANNER_BUFFER_SIZE>,
-    mapper_channel: &'static mapper::MapperChannel<NoopRawMutex, REPORT_BUFFER_SIZE>,
-    fs: &'static dyn ring_fs::RingFs<'static>,
-    debounce_ms_atomic: &'static AtomicU8,
-) {
-    let mut mapper =
-        mapper::Mapper::<'static, ROW_COUNT, COL_COUNT, LAYOUT_MAX, _, REPORT_BUFFER_SIZE>::new(
-            mapper_channel,
-            debounce_ms_atomic,
-        );
-    {
-        if !match fs.file_reader_by_index(0) {
-            Ok(fr) => {
-                if let Err(err) = mapper.load_layout(config::ConfigFileIter::new(fr)) {
-                    crate::info!("error loading layout {:?}", err);
-                    false
-                } else {
-                    true
-                }
-            }
-            Err(err) => {
-                crate::info!("error reading layout {:?}", err);
-                false
-            }
-        } {
-            if let Err(err) = mapper.load_layout(layout_mapping.iter().copied()) {
-                crate::info!("unexpected error loading layout {:?}", err);
-            }
-        }
-    }
-
-    loop {
-        if let mapper::ControlMessage::LoadLayout { file_location } =
-            mapper.run(key_scan_channel).await
-        {
-            crate::debug!("load layout here {}", file_location);
-            match fs.file_reader_by_location(file_location) {
-                Ok(fr) => {
-                    if let Err(err) = mapper.load_layout(config::ConfigFileIter::new(fr)) {
-                        crate::info!("error loading layout {:?}", err);
-                        mapper.load_layout(layout_mapping.iter().copied()).unwrap();
-                    }
-                }
-                Err(err) => crate::info!("error reading layout {:?}", err),
-            }
-        }
-    }
-}
 
 /// Configure and run a keyboard using the config file [`default-layout.rpk.conf`][c].
 ///
@@ -149,7 +91,7 @@ macro_rules! rp_run_keyboard {
             mapper_channel: &'static MapperChannel,
             fs: &'static dyn RingFs<'static>,
         ) {
-            rp::run_mapper::<
+            mapper::config_loader::run::<
             ROW_COUNT, COL_COUNT, LAYOUT_MAX,
             SCANNER_BUFFER_SIZE, REPORT_BUFFER_SIZE,
             >(layout_mapping, key_scan_channel, mapper_channel, fs, &DEBOUNCE_TUNE).await;

@@ -18,6 +18,8 @@ use crate::{
     layout,
 };
 
+pub mod config_loader;
+
 pub(crate) mod dual_action;
 pub(crate) mod macros;
 pub(crate) mod mouse;
