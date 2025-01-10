@@ -167,21 +167,14 @@ impl<I: KeyboardInterface> KeyboardCtl<I> {
 
     pub fn save_config(&self, data: &[u16], file_name: Option<&OsStr>) -> Result<()> {
         self.out(vec![msg::OPEN_SAVE_CONFIG])?;
-        let file_name = file_name.unwrap_or(OsStr::new("")).as_encoded_bytes();
-        let file_name = &file_name[..min(50, file_name.len())];
+        let (file_name, file_name_len) = file_name_iter(file_name);
 
-        let mut type_fnlen = vec![FileType::Config.as_u8(), file_name.len() as u8];
-        if file_name.len() % 2 == 1 {
-            type_fnlen[1] += 1;
-            type_fnlen.push(0);
-        }
-
-        let iter = (18 + type_fnlen[1] as u32 + ((data.len() as u32) << 1))
+        let iter = (18 + file_name_len as u32 + ((data.len() as u32) << 1))
             .to_le_bytes()
             .into_iter()
             .chain(chrono::Local::now().timestamp_millis().to_le_bytes())
-            .chain(type_fnlen)
-            .chain(file_name.iter().copied())
+            .chain([FileType::Config.as_u8(), file_name_len as u8])
+            .chain(file_name.copied())
             .chain(u16tou8(data));
 
         for chunk in chunked(iter, MAX_BULK_LEN as usize) {
@@ -219,6 +212,21 @@ impl<I: KeyboardInterface> KeyboardCtl<I> {
     pub fn list_files(&self) -> FileListIterator<I> {
         FileListIterator::new(self)
     }
+}
+
+pub fn file_name_iter(file_name: Option<&OsStr>) -> (impl Iterator<Item = &u8>, usize) {
+    let file_name = file_name.unwrap_or(OsStr::new("")).as_encoded_bytes();
+    let file_name = &file_name[..min(50, file_name.len())];
+    let mut v = vec![];
+    let mut len = file_name.len();
+    if len % 2 == 1 {
+        let null: &[u8] = &[0];
+        len += 1;
+        v.push(null);
+    }
+    v.push(file_name);
+
+    (v.into_iter().flatten(), len)
 }
 
 struct Chunked<I> {

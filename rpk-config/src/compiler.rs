@@ -1037,6 +1037,14 @@ impl<'source> KeyboardConfig<'source> {
         }
     }
 
+    pub fn layer_count(&self) -> usize {
+        self.layers.len() + self.composites.len()
+    }
+
+    pub fn macro_count(&self) -> usize {
+        self.macros.len()
+    }
+
     #[cfg(test)]
     fn deserialize(data: &[u16]) -> Self {
         assert!(data.len() > 14);

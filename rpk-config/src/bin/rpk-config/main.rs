@@ -1,9 +1,13 @@
 use clap::{Args, Parser, Subcommand, ValueEnum};
 use rpk_common::keycodes::key_range;
 use rpk_config::{
-    compiler::KeyboardConfig, keycodes, pretty_compile, vendor_coms::KeyboardCtl, ConfigError,
+    compiler::KeyboardConfig,
+    keycodes, pretty_compile,
+    vendor_coms::{self, FileInfo, KeyboardCtl},
+    ConfigError,
 };
 use std::{
+    collections::HashSet,
     fs,
     io::{self, Write},
     path::{Path, PathBuf},
@@ -125,6 +129,10 @@ struct LsArgs {
     /// Include extra information
     #[clap(long, short)]
     verbose: bool,
+
+    /// Show older versions of files
+    #[clap(long, short)]
+    old: bool,
 
     /// Sort results by name; Defaults to sorting by timestamp
     #[clap(long, short)]
@@ -284,15 +292,27 @@ impl DeviceFinder {
 
         let ctl = finder.get_keyboard()?;
 
-        if args.verbose {
-            for info in ctl.list_files() {
-                println!("{}", info?);
+        let mut dups = if args.old { None } else { Some(HashSet::new()) };
+
+        let iter = ctl.list_files().map_while(|r| r.ok()).filter(|i| {
+            if let Some(ref mut dups) = &mut dups {
+                if dups.contains(&i.filename) {
+                    false
+                } else {
+                    dups.insert(i.filename.to_owned());
+                    true
+                }
+            } else {
+                true
             }
+        });
+
+        if args.sort_by_name {
+            let mut list: Vec<FileInfo> = iter.collect();
+            list.sort_by(|a, b| a.filename.as_str().cmp(b.filename.as_str()));
+            list_files(list, args.verbose);
         } else {
-            for info in ctl.list_files() {
-                let info = info?;
-                println!("{} ({})", info.filename, info.index);
-            }
+            list_files(iter, args.verbose);
         }
 
         Ok(())
@@ -318,6 +338,18 @@ impl DeviceFinder {
     }
 }
 
+fn list_files(iter: impl IntoIterator<Item = FileInfo>, verbose: bool) {
+    if verbose {
+        for info in iter {
+            println!("{}", info);
+        }
+    } else {
+        for info in iter {
+            println!("{} ({})", info.filename, info.index);
+        }
+    }
+}
+
 #[derive(Args)]
 struct UploadArgs {
     /// keyboard config description file
@@ -336,6 +368,10 @@ struct InitArgs {
 
 #[derive(Args)]
 struct ValidateArgs {
+    /// Display information about the configurate file
+    #[clap(long, short)]
+    verbose: bool,
+
     /// keyboard config description file
     file: PathBuf,
 }
@@ -376,7 +412,13 @@ fn validate(args: &ValidateArgs) -> Result<()> {
 
     match fs::read_to_string(file) {
         Ok(src) => {
-            compile_file(file, &src)?;
+            let conf = compile_file(file, &src)?;
+            if args.verbose {
+                let len = vendor_coms::file_name_iter(file.file_name()).1;
+                println!("binary size: {}", conf.serialize().len() * 2 + 18 + len);
+                println!("layers:      {}", conf.layer_count());
+                println!("macros:      {}", conf.macro_count());
+            }
             Ok(())
         }
 
@@ -521,6 +563,7 @@ mod test {
     #[test]
     fn validate_cmd() {
         let args = ValidateArgs {
+            verbose: false,
             file: PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/default.conf"),
         };
 
