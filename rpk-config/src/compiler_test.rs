@@ -1054,7 +1054,6 @@ fn global_dual_action_timeout() {
                 value: 500,
                 min: 0,
                 max: 5000,
-                dp: 0
             }
         ));
 
@@ -1081,7 +1080,6 @@ fn global_dual_action_timeout2() {
                 value: 50,
                 min: 0,
                 max: 5000,
-                dp: 0
             }
         ));
 
@@ -1104,7 +1102,6 @@ fn tapdance_tap_timeout() {
                 value: 50,
                 min: 0,
                 max: 5000,
-                dp: 0
             }
         ));
 
@@ -1125,13 +1122,15 @@ fn global_debounce_settle_time() {
 
     compile_global!(src, config, "debounce_settle_time", 23.5, {
         let config = config.unwrap();
+
         assert!(matches!(
             config.global("debounce_settle_time").unwrap().spec,
-            GlobalType::Timeout {
-                value: 235,
-                min: 1,
-                max: 250,
-                dp: 1
+            GlobalType::TimeoutCurve {
+                value: 616,
+                min: 0.1,
+                max: 2500.0,
+                dp: 1,
+                multiplier: 26.214,
             }
         ));
 
@@ -1139,7 +1138,7 @@ fn global_debounce_settle_time() {
 
         assert_eq!(
             bin,
-            [1, 0, 6, 0, 2, 5, 235, 7, 8, 9, 10, 11, 12, 13, 1, 2, 4, 8, 64, 0]
+            [1, 0, 6, 0, 2, 5, 616, 7, 8, 9, 10, 11, 12, 13, 1, 2, 4, 8, 64, 0]
         );
     });
 }

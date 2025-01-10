@@ -11,11 +11,11 @@ pub mod ring_fs;
 pub mod usb;
 
 #[cfg(feature = "test-utils")]
-pub mod usb_test_stub;
-#[cfg(feature = "test-utils")]
 pub mod flash_test_stub;
 #[cfg(feature = "test-utils")]
 pub mod time_driver_test_stub;
+#[cfg(feature = "test-utils")]
+pub mod usb_test_stub;
 
 #[macro_use]
 mod macros;

@@ -55,7 +55,7 @@ impl Default for MyEndpointIn {
             info: EndpointInfo {
                 addr: EndpointAddress::from(0),
                 ep_type: EndpointType::Interrupt,
-                max_packet_size: MAX_BULK_LEN as u16,
+                max_packet_size: MAX_BULK_LEN,
                 interval_ms: 1,
             },
         }
@@ -74,12 +74,10 @@ impl Endpoint for MyEndpointOut {
 }
 impl EndpointOut for MyEndpointOut {
     async fn read(&mut self, buf: &mut [u8]) -> Result<usize, embassy_usb::driver::EndpointError> {
-        loop {
-            let msg = self.messages.receive().await;
-            let msg = &msg[..min(buf.len(), msg.len())];
-            buf[..msg.len()].copy_from_slice(msg);
-            return Ok(msg.len());
-        }
+        let msg = self.messages.receive().await;
+        let msg = &msg[..min(buf.len(), msg.len())];
+        buf[..msg.len()].copy_from_slice(msg);
+        Ok(msg.len())
     }
 }
 impl Default for MyEndpointOut {

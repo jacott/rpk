@@ -26,7 +26,7 @@ macro_rules! setup {
     (RC $r:expr, $c:expr, $t:ident, $press:ident, $assert_read:ident, $a:expr, $x:block) => {
         {
             let mapper_channel = MapperChannel::default();
-            let debounce_ms_atomic = atomic::AtomicU8::new(8);
+            let debounce_ms_atomic = atomic::AtomicU16::new(8);
             let mut $t = Mapper::<$r, $c, 200, NoopRawMutex, 10>::new(&mapper_channel, &debounce_ms_atomic);
 
             let layout = rpk_config::text_to_binary($a).unwrap();
@@ -690,11 +690,11 @@ debounce_settle_time = 12.3
             assert_eq!(t.layout.global(globals::DUAL_ACTION_TIMEOUT as usize), 500);
             assert_eq!(t.layout.global(globals::DUAL_ACTION_TIMEOUT2 as usize), 50);
             assert_eq!(t.layout.global(globals::TAPDANCE_TAP_TIMEOUT as usize), 90);
-            assert_eq!(t.layout.global(globals::DEBOUNCE_SETTLE_TIME as usize), 123);
+            assert_eq!(t.layout.global(globals::DEBOUNCE_SETTLE_TIME as usize), 322);
 
             let debounce = t.debounce_ms_atomic.load(atomic::Ordering::Relaxed);
 
-            assert_eq!(debounce, 123);
+            assert_eq!(debounce, 322);
         }
     );
 }

@@ -89,21 +89,16 @@ impl<'d, D: Driver<'d>> ConfigEndPoint<'d, D> {
         let mut write_buf = [0; MAX_BULK_LEN as usize];
         loop {
             self.read_ep.wait_enabled().await;
-            loop {
-                match self.read_ep.read(&mut buf).await {
-                    Ok(n) => {
-                        if n > 0 {
-                            let r = self
-                                .config_interface
-                                .receive(&buf[..n], &mut write_buf)
-                                .await;
+            while let Ok(n) = self.read_ep.read(&mut buf).await {
+                if n > 0 {
+                    let r = self
+                        .config_interface
+                        .receive(&buf[..n], &mut write_buf)
+                        .await;
 
-                            if r != 0 {
-                                self.write_ep.write(&write_buf[..r]).await.ok();
-                            }
-                        }
+                    if r != 0 {
+                        self.write_ep.write(&write_buf[..r]).await.ok();
                     }
-                    Err(_) => break,
                 }
             }
         }

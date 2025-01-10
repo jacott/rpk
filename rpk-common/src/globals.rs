@@ -17,7 +17,7 @@ pub const LAST_TIMEOUT: u16 = 6;
 
 pub const DUAL_ACTION_TIMEOUT_DEFAULT: u16 = 180; // 180ms
 pub const DUAL_ACTION_TIMEOUT2_DEFAULT: u16 = 20; // 20ms
-pub const DEBOUNCE_SETTLE_TIME_DEFAULT: u16 = 200; // 20.0 ms
+pub const DEBOUNCE_SETTLE_TIME_DEFAULT: u16 = (20.0 * 65535.0 / 2500.0) as u16; // 20.0 ms
 pub const TAPDANCE_TAP_TIMEOUT_DEFAULT: u16 = 180; // 180ms
 
 pub const COMPOSITE_BIT: u16 = 0x0100;

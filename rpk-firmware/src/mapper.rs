@@ -274,7 +274,7 @@ pub struct Mapper<
     memo_count: usize,
     now: u64,
     report_count: u16,
-    debounce_ms_atomic: &'c atomic::AtomicU8,
+    debounce_ms_atomic: &'c atomic::AtomicU16,
     pending_down_modifiers: u8,
     pending_up_modifiers: u8,
 }
@@ -290,7 +290,7 @@ impl<
     const OKAY: bool = assert_sizes::<LAYOUT_MAX, REPORT_BUFFER_SIZE>();
     pub fn new(
         report_channel: &'c MapperChannel<M, REPORT_BUFFER_SIZE>,
-        debounce_ms_atomic: &'c atomic::AtomicU8,
+        debounce_ms_atomic: &'c atomic::AtomicU16,
     ) -> Self {
         assert!(Self::OKAY);
         Self {
@@ -564,7 +564,7 @@ impl<
         self.mouse
             .set_config(self.layout.get_mouse_profile(1).unwrap());
         self.debounce_ms_atomic.store(
-            self.layout.global(globals::DEBOUNCE_SETTLE_TIME as usize) as u8,
+            self.layout.global(globals::DEBOUNCE_SETTLE_TIME as usize),
             atomic::Ordering::Relaxed,
         );
 

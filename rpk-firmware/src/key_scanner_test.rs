@@ -118,7 +118,7 @@ macro_rules! setup {
             $p1.set_high().ok();
 
             let $channel = KeyScannerChannel::<NoopRawMutex, 16>::default();
-            let debounce_ms_atomic = atomic::AtomicU8::new($debounce_ms);
+            let debounce_ms_atomic = atomic::AtomicU16::new($debounce_ms);
             let mut $scanner =
                 KeyScanner::new([$p1.clone()], [p2.clone()], &$channel, &debounce_ms_atomic);
             $scanner.pin_wait = Duration::from_micros(50);
@@ -154,7 +154,7 @@ macro_rules! setup {
 
 #[test]
 fn debounce_low_sensitivity() {
-    setup!(scan, p1, channel, scanner 250 {
+    setup!(scan, p1, channel, scanner 655 {
         scan!(1, 0);
 
         assert_eq!(scanner.debounce_divisor, 2);
@@ -188,7 +188,7 @@ fn debounce_low_sensitivity() {
 
 #[test]
 fn debounce() {
-    setup!(scan, p1, channel, scanner 10 {
+    setup!(scan, p1, channel, scanner 30 {
         p1.set_low().ok();
 
         assert_eq!(scanner.debounce_divisor, 1);

@@ -119,7 +119,7 @@ pub struct KeyScanner<
     pin_wait: Duration,
     now: Instant,
     clock: Instant,
-    debounce_ms_atomic: &'c atomic::AtomicU8,
+    debounce_ms_atomic: &'c atomic::AtomicU16,
 }
 impl<
         'c,
@@ -135,7 +135,7 @@ impl<
         input_pins: [I; INPUT_N],
         output_pins: [O; OUTPUT_N],
         channel: &'c KeyScannerChannel<M, PS>,
-        debounce_ms_atomic: &'c atomic::AtomicU8,
+        debounce_ms_atomic: &'c atomic::AtomicU16,
     ) -> Self {
         let mut ks = Self {
             input_pins,
@@ -283,8 +283,14 @@ impl<
 
         self.all_up_limit = IDLE_WAIT_MS * 1000 / w;
 
-        let m =
-            (self.debounce_ms_atomic.load(atomic::Ordering::Relaxed) as u32).clamp(1, 250) * 100;
+        let m16 = self.debounce_ms_atomic.load(atomic::Ordering::Relaxed) as u32;
+        let m = (if m16 < 16384 {
+            (m16 * 250000 / 65535) * 10
+        } else {
+            (m16 * 25000 / 65535) * 100
+        })
+        .clamp(1, 2_500_000);
+
         let l = m / w;
         let f = l / 252 + 1;
         self.debounce_divisor = f;

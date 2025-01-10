@@ -29,8 +29,18 @@ mod no_defmt {
 }
 }
 
-#[cfg(all(not(test), feature = "defmt"))]
+#[cfg(feature = "defmt")]
 mod defmt {
+    #[macro_export]
+    macro_rules! kc {
+        ($a:expr) => {
+            match rpk_config::keycodes::key_code($a) {
+                Some(kc) => kc,
+                None => panic!("Unknown key mnemonic: {:?}", $a),
+            }
+        };
+    }
+
     /// Convience macro to use whilst debugging code. It will call the [defmt::debug] macro.
     ///
     /// This macro works with either defmt or nothing. When testing on the host Operating system
@@ -99,7 +109,7 @@ mod defmt {
     }
 }
 
-#[cfg(feature = "test-utils")]
+#[cfg(all(feature = "test-utils", not(feature = "defmt")))]
 mod test {
     #[macro_export]
     macro_rules! kc {

@@ -1,4 +1,4 @@
-pub use core::sync::atomic::AtomicU8;
+pub use core::sync::atomic::AtomicU16;
 pub use embassy_rp::{bind_interrupts, flash, gpio, init, peripherals, rom_data, usb};
 
 /// Configure and run a keyboard using the config file [`default-layout.rpk.conf`][c].
@@ -35,7 +35,7 @@ macro_rules! rp_run_keyboard {
         use rpk_builder::{mapper, key_scanner, ring_fs::RingFs,
             UsbState, UsbConfigurator, UsbBuffers, config, usb};
         use rpk_builder::NoopRawMutex;
-        use core::sync::atomic::AtomicU8;
+        use core::sync::atomic::AtomicU16;
 
         type ScanChannel = key_scanner::KeyScannerChannel<NoopRawMutex, SCANNER_BUFFER_SIZE>;
         type MapperChannel = mapper::MapperChannel<NoopRawMutex, REPORT_BUFFER_SIZE>;
@@ -51,7 +51,7 @@ macro_rules! rp_run_keyboard {
         static USB_CONFIG: StaticCell<UsbConfigurator> = StaticCell::new();
         static SHARED_HID_STATE: StaticCell<UsbState> = StaticCell::new();
 
-        static DEBOUNCE_TUNE: AtomicU8 = AtomicU8::new(8);
+        static DEBOUNCE_TUNE: AtomicU16 = AtomicU16::new(524);
 
         bind_interrupts!(struct Irqs {
             USBCTRL_IRQ => InterruptHandler<USB>;

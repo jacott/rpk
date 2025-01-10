@@ -42,7 +42,6 @@ std::thread_local! {
     static NOW: RefCell<u64> = const {RefCell::new(0)};
 }
 
-
 // TODO this needs to be thread local
 embassy_time_driver::time_driver_impl!(static TIME_DRIVER: TestTimeDriver = TestTimeDriver);
 

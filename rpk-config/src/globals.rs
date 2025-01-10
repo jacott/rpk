@@ -14,10 +14,64 @@ pub(crate) mod spec {
             value: u16,
             max: u16,
             min: u16,
+        },
+        TimeoutCurve {
+            value: u16,
+            max: f32,
+            min: f32,
             dp: i32,
+            multiplier: f32,
         },
         MouseProfile(MouseConfig),
     }
+    impl GlobalType {
+        pub(crate) fn parse(&self, text: &str) -> Result<Self, String> {
+            match self {
+                Timeout { max, min, .. } => Ok(Timeout {
+                    value: parse_duration(text, *min, *max)?,
+                    max: *max,
+                    min: *min,
+                }),
+                TimeoutCurve {
+                    max,
+                    min,
+                    dp,
+                    multiplier,
+                    ..
+                } => {
+                    if let Ok(n) = text.parse::<f32>() {
+                        if n >= *min && n <= *max {
+                            return Ok(TimeoutCurve {
+                                value: (n * multiplier) as u16,
+                                max: *max,
+                                min: *min,
+                                dp: *dp,
+                                multiplier: *multiplier,
+                            });
+                        }
+                    }
+                    let dp = *dp as usize;
+                    Err(format!(
+                        "Invalid duration; only {min:.*} to {max:.*} milliseconds are valid",
+                        dp, dp
+                    ))
+                }
+                _ => panic!("Unsupported"),
+            }
+        }
+    }
+
+    pub fn parse_duration(text: &str, min: u16, max: u16) -> Result<u16, String> {
+        if let Ok(value) = text.parse::<u16>() {
+            if value.clamp(min, max) == value {
+                return Ok(value);
+            }
+        }
+        Err(format!(
+            "Invalid duration; only {min} to {max} milliseconds are valid"
+        ))
+    }
+
     use GlobalType::*;
 
     use crate::f32_to_u16;
@@ -47,7 +101,9 @@ pub(crate) mod spec {
             let name = super::INDEX_TO_NAME.get(index as usize).copied()?;
             let mut gp = GlobalProp::new_default(name).ok()?;
             match gp.spec {
-                Timeout { ref mut value, .. } => *value = data.next()?,
+                Timeout { ref mut value, .. } | TimeoutCurve { ref mut value, .. } => {
+                    *value = data.next()?
+                }
                 MouseProfile(ref mut config) => {
                     config.movement = MouseAnalogSetting::deserialize(data)?;
                     config.scroll = MouseAnalogSetting::deserialize(data)?;
@@ -59,7 +115,9 @@ pub(crate) mod spec {
 
         pub(crate) fn serialize(self) -> Box<dyn Iterator<Item = u16>> {
             match self.spec {
-                Timeout { value, .. } => Box::new([self.index, value].into_iter()),
+                Timeout { value, .. } | TimeoutCurve { value, .. } => {
+                    Box::new([self.index, value].into_iter())
+                }
                 MouseProfile(MouseConfig { movement, scroll }) => Box::new(
                     [self.index]
                         .into_iter()
@@ -137,7 +195,6 @@ pub(crate) mod spec {
                 value: globals::DUAL_ACTION_TIMEOUT_DEFAULT,
                 min: 0,
                 max: 5000,
-                dp: 0,
             },
         },
         GlobalProp {
@@ -146,16 +203,16 @@ pub(crate) mod spec {
                 value: globals::DUAL_ACTION_TIMEOUT2_DEFAULT,
                 min: 0,
                 max: 5000,
-                dp: 0,
             },
         },
         GlobalProp {
             index: globals::DEBOUNCE_SETTLE_TIME,
-            spec: GlobalType::Timeout {
+            spec: GlobalType::TimeoutCurve {
                 value: globals::DEBOUNCE_SETTLE_TIME_DEFAULT,
-                min: 1,
-                max: 250,
+                min: 0.1,
+                max: 2500.0,
                 dp: 1,
+                multiplier: 65535.0 / 2500.0,
             },
         },
         GlobalProp {
@@ -164,7 +221,6 @@ pub(crate) mod spec {
                 value: globals::TAPDANCE_TAP_TIMEOUT_DEFAULT,
                 min: 0,
                 max: 5000,
-                dp: 0,
             },
         },
     ];
