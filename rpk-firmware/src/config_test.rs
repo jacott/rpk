@@ -18,7 +18,9 @@ macro_rules! setup {
         let $fs = TestFs::new(&mut stub).unwrap();
         let $ctl_sig = ControlSignal::default();
 
-        let mut $ci = ConfigInterface::new(&$fs, &$ctl_sig);
+        let host_channel = Default::default();
+
+        let mut $ci = ConfigInterface::<'_, '_, 2>::new(&$fs, &$ctl_sig, &host_channel);
         block_on(async { $x })
     };
 }
@@ -36,7 +38,7 @@ fn reset_from_usb() {
 
         assert_eq!(CALL_COUNT.with_borrow(|c| *c), 0);
 
-        ci.receive(&[msg::RESET_KEYBOARD], &mut [0; 1]).await;
+        ci.receive(&[msg::RESET_KEYBOARD]).await;
         assert_eq!(CALL_COUNT.with_borrow(|c| *c), 1);
     });
 }
@@ -54,7 +56,7 @@ fn reset_to_usb_boot_from_usb() {
 
         assert_eq!(CALL_COUNT.with_borrow(|c| *c), 0);
 
-        ci.receive(&[msg::RESET_TO_USB_BOOT], &mut [0; 1]).await;
+        ci.receive(&[msg::RESET_TO_USB_BOOT]).await;
         assert_eq!(CALL_COUNT.with_borrow(|c| *c), 1);
     });
 }
@@ -66,32 +68,32 @@ fn read_file() {
         let mut data: [u8; 20] = core::array::from_fn(|i| i as u8);
         data[0..4].copy_from_slice(&20u32.to_le_bytes());
         fw.write(&data).unwrap();
-        let mut wb = [0; 30];
-        let ans = ci
-            .receive(&[msg::READ_FILE_BY_INDEX, 0, 0, 0, 0], &mut wb)
-            .await;
-        assert_eq!(ans, 24);
-        assert_eq!(&wb[4..24], &data);
+        ci.receive(&[msg::READ_FILE_BY_INDEX, 0, 0, 0, 0]).await;
+        let msg = ci.host_channel.0.try_receive().unwrap();
+        assert_eq!(&msg.data[5..25], &data);
+        assert_eq!(msg.len, 24);
+        assert_eq!(msg.data[0], 1);
         assert_eq!(
             fw.location(),
-            u32::from_le_bytes((&wb[..4]).try_into().unwrap())
+            u32::from_le_bytes((&msg.data[1..5]).try_into().unwrap())
         );
+
+        ci.receive(&[msg::READ_FILE_BY_INDEX, 1, 0, 0, 0]).await;
+        let msg = ci.host_channel.0.try_receive().unwrap();
+        assert_eq!(msg.len, 0);
+        assert_eq!(msg.data[0], 0);
     });
 }
 
 #[test]
 fn save_config() {
-    let mut write_buf = [0; 10];
     setup!(ci, ctl_sig, fs, {
         {
             // load small layout file
-            assert_eq!(
-                ci.receive(&[msg::OPEN_SAVE_CONFIG], &mut write_buf).await,
-                0
-            );
+            ci.receive(&[msg::OPEN_SAVE_CONFIG]).await;
 
             let mut data = [msg::CLOSE_SAVE_CONFIG, 6, 0, 0, 0, 1, 2];
-            ci.receive(&data, &mut write_buf).await;
+            ci.receive(&data).await;
 
             let Some(ControlMessage::LoadLayout {
                 file_location: location,
@@ -108,17 +110,17 @@ fn save_config() {
 
         {
             // load larger layout file
-            ci.receive(&[msg::OPEN_SAVE_CONFIG], &mut write_buf).await;
+            ci.receive(&[msg::OPEN_SAVE_CONFIG]).await;
 
             let mut data: [u8; 190] = core::array::from_fn(|i| i as u8);
             data[..4].copy_from_slice(&[190, 0, 0, 0]);
-            ci.receive(&data[..64], &mut write_buf).await;
-            ci.receive(&data[64..128], &mut write_buf).await;
+            ci.receive(&data[..64]).await;
+            ci.receive(&data[64..128]).await;
 
             assert!(ctl_sig.try_take().is_none());
 
             data[127] = msg::CLOSE_SAVE_CONFIG;
-            ci.receive(&data[127..], &mut write_buf).await;
+            ci.receive(&data[127..]).await;
 
             let Some(ControlMessage::LoadLayout {
                 file_location: location,

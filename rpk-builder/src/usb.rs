@@ -1,3 +1,4 @@
+use embassy_futures::join::join;
 use embassy_usb::{
     class::hid::{ReportId, RequestHandler},
     control::OutResponse,
@@ -56,7 +57,7 @@ impl ConfigBuilder {
 
     pub fn cfg_ep<'d, D: Driver<'d>>(
         &self,
-        config_interface: ConfigInterface<'d, 'd>,
+        config_interface: ConfigInterface<'d, 'd, 2>,
         mut usb_builder: Builder<'d, D>,
     ) -> (ConfigEndPoint<'d, D>, Builder<'d, D>) {
         let mut function = usb_builder.function(0xFF, 0, 0);
@@ -78,30 +79,34 @@ impl ConfigBuilder {
     }
 }
 
+const HOST_CHANNEL_LEN: usize = 2;
+
 pub struct ConfigEndPoint<'d, D: Driver<'d>> {
-    config_interface: ConfigInterface<'d, 'd>,
+    config_interface: ConfigInterface<'d, 'd, HOST_CHANNEL_LEN>,
     read_ep: D::EndpointOut,
     write_ep: D::EndpointIn,
 }
 impl<'d, D: Driver<'d>> ConfigEndPoint<'d, D> {
     pub async fn run(&mut self) {
-        let mut buf = [0; MAX_BULK_LEN as usize];
-        let mut write_buf = [0; MAX_BULK_LEN as usize];
-        loop {
-            self.read_ep.wait_enabled().await;
-            while let Ok(n) = self.read_ep.read(&mut buf).await {
-                if n > 0 {
-                    let r = self
-                        .config_interface
-                        .receive(&buf[..n], &mut write_buf)
-                        .await;
-
-                    if r != 0 {
-                        self.write_ep.write(&write_buf[..r]).await.ok();
+        let host_channel = self.config_interface.host_channel;
+        let r = async {
+            let mut buf = [0; MAX_BULK_LEN as usize];
+            loop {
+                self.read_ep.wait_enabled().await;
+                while let Ok(n) = self.read_ep.read(&mut buf).await {
+                    if n > 0 {
+                        self.config_interface.receive(&buf[..n]).await;
                     }
                 }
             }
-        }
+        };
+        let s = async {
+            loop {
+                let msg = host_channel.receive().await;
+                self.write_ep.write(&msg.as_slice()).await.ok();
+            }
+        };
+        join(r, s).await;
     }
 }
 

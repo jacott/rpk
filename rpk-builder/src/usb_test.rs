@@ -34,10 +34,11 @@ macro_rules! setup {
             let ctl_sig = ControlSignal::default();
 
             let $messages = ep_in.messages.clone();
+            let host_channel = Default::default();
             let mut $cfg_ep = ConfigEndPoint::<'_, MyDriver> {
                 write_ep: ep_in,
                 read_ep: ep_out,
-                config_interface: ConfigInterface::new(&$fs, &ctl_sig),
+                config_interface: ConfigInterface::new(&$fs, &ctl_sig, &host_channel),
             };
             $x
         });
@@ -72,8 +73,8 @@ fn config_end_point() {
             match select3(cfg_ep.run(), messages.receive(), Timer::after_millis(200)).await {
                 Either3::First(_) => panic!("Unexpected run end"),
                 Either3::Second(msg) => {
-                    assert_eq!(msg.len(), 12);
-                    assert_eq!(msg, &[80, 0, 0, 0, 8, 0, 0, 0, 6, 7, 8, 9])
+                    assert_eq!(msg.len(), 13);
+                    assert_eq!(msg, &[1, 80, 0, 0, 0, 8, 0, 0, 0, 6, 7, 8, 9])
                 },
                 Either3::Third(_) => panic!("Timed out"),
 

@@ -2,6 +2,7 @@ use crate::{
     firmware_functions, mapper,
     ring_fs::{RingFs, RingFsReader, RingFsWriter},
 };
+use embassy_sync::{blocking_mutex::raw::NoopRawMutex, channel::Channel};
 use rpk_common::usb_vendor_message::{self as msg, MAX_BULK_LEN};
 
 enum ReceiveState {
@@ -9,24 +10,67 @@ enum ReceiveState {
     ConfigData,
 }
 
-pub struct ConfigInterface<'f, 'c> {
+const MSG_LEN: usize = MAX_BULK_LEN as usize;
+
+pub struct HostMessage {
+    len: usize,
+    data: [u8; MSG_LEN],
+}
+impl HostMessage {
+    fn not_found() -> Self {
+        Self {
+            len: 0,
+            data: [0; MSG_LEN],
+        }
+    }
+    fn file_info() -> Self {
+        let mut msg = Self::not_found();
+        msg.data[0] = 1;
+        msg
+    }
+
+    pub fn as_slice(&self) -> &[u8] {
+        &self.data[..(self.len + 1)]
+    }
+}
+
+pub struct HostChannel<const N: usize>(Channel<NoopRawMutex, HostMessage, N>);
+impl<const N: usize> Default for HostChannel<N> {
+    fn default() -> Self {
+        Self(Channel::new())
+    }
+}
+
+impl<const N: usize> HostChannel<N> {
+    pub async fn receive(&self) -> HostMessage {
+        self.0.receive().await
+    }
+}
+
+pub struct ConfigInterface<'f, 'c, const N: usize> {
     fs: &'f dyn RingFs<'f>,
     mapper_ctl: &'c mapper::ControlSignal,
     fw: Option<RingFsWriter<'f>>,
     rcv_state: ReceiveState,
+    pub host_channel: &'c HostChannel<N>,
 }
 
-impl<'f, 'c> ConfigInterface<'f, 'c> {
-    pub fn new(fs: &'f dyn RingFs<'f>, mapper_ctl: &'c mapper::ControlSignal) -> Self {
+impl<'f, 'c, const N: usize> ConfigInterface<'f, 'c, N> {
+    pub fn new(
+        fs: &'f dyn RingFs<'f>,
+        mapper_ctl: &'c mapper::ControlSignal,
+        host_channel: &'c HostChannel<N>,
+    ) -> Self {
         Self {
             fs,
             mapper_ctl,
             fw: None,
             rcv_state: ReceiveState::Idle,
+            host_channel,
         }
     }
 
-    pub async fn receive(&mut self, data: &[u8], write_buf: &mut [u8]) -> usize {
+    pub async fn receive(&mut self, data: &[u8]) {
         match self.rcv_state {
             ReceiveState::Idle => match *data.first().unwrap_or(&0) {
                 msg::OPEN_SAVE_CONFIG if data.len() == 1 => {
@@ -43,15 +87,16 @@ impl<'f, 'c> ConfigInterface<'f, 'c> {
                         .fs
                         .file_reader_by_index(u32::from_le_bytes(data[1..].try_into().unwrap()))
                     {
-                        write_buf[..4].copy_from_slice(&fr.location().to_le_bytes());
+                        let mut info = HostMessage::file_info();
+                        info.data[1..5].copy_from_slice(&fr.location().to_le_bytes());
 
-                        if let Ok(n) = fr.read(&mut write_buf[4..]) {
-                            return n as usize + 4;
+                        if let Ok(n) = fr.read(&mut info.data[5..]) {
+                            info.len = n as usize + 4;
+                            self.host_channel.0.send(info).await;
+                            return;
                         }
                     }
-
-                    write_buf[0] = 0;
-                    return 1;
+                    self.host_channel.0.send(HostMessage::not_found()).await;
                 }
                 n => {
                     crate::error!("Unexpected msg [{}; {}]", n, data.len())
@@ -78,7 +123,6 @@ impl<'f, 'c> ConfigInterface<'f, 'c> {
                 }
             },
         }
-        0
     }
 
     fn file_write(&mut self, data: &[u8]) {
