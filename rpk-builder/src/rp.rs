@@ -39,10 +39,13 @@ macro_rules! rp_run_keyboard {
 
         type ScanChannel = key_scanner::KeyScannerChannel<NoopRawMutex, SCANNER_BUFFER_SIZE>;
         type MapperChannel = mapper::MapperChannel<NoopRawMutex, REPORT_BUFFER_SIZE>;
-        type ConfigInterface = config::ConfigInterface<'static, 'static>;
+        type ConfigInterface = config::ConfigInterface<'static, 'static, 2>;
 
         static KEY_SCAN_CHANNEL: StaticCell<ScanChannel> = StaticCell::new();
         static MAPPER_CHANNEL: StaticCell<MapperChannel> = StaticCell::new();
+
+        type HostChannel = config::HostChannel<2>;
+        static HOST_CHANNEL: StaticCell<HostChannel> = StaticCell::new();
 
         static FLASH: StaticCell<Flash> = StaticCell::new();
         static RFS: StaticCell<Rfs> = StaticCell::new();
@@ -151,7 +154,9 @@ macro_rules! rp_run_keyboard {
             CONFIG_BUILDER.shared_hid_iface(
                 usb_config, shared_hid_state, usb_builder);
 
-            let config_interface = ConfigInterface::new(fs, mapper_channel.control());
+            let host_channel: &'static HostChannel = HOST_CHANNEL.init(Default::default());
+
+            let config_interface = ConfigInterface::new(fs, mapper_channel.control(), &host_channel);
 
             let (config_ep, usb_builder) = CONFIG_BUILDER.cfg_ep(config_interface, usb_builder);
 

@@ -1,10 +1,20 @@
-use std::{cmp::min, ffi::OsStr, fmt::Display};
+use std::{
+    cmp::min,
+    collections::HashMap,
+    ffi::OsStr,
+    fmt::Display,
+    sync::{
+        mpsc::{self, RecvTimeoutError},
+        Arc, Mutex,
+    },
+    time::Duration,
+};
 
 use anyhow::{anyhow, Result};
 use chrono::{DateTime, Local, Utc};
 use futures_lite::future::block_on;
 use nusb::transfer::{Direction, RequestBuffer};
-use rpk_common::usb_vendor_message::{self as msg, MAX_BULK_LEN, READ_FILE_BY_INDEX};
+use rpk_common::usb_vendor_message::{self as msg, host_recv, MAX_BULK_LEN, READ_FILE_BY_INDEX};
 
 fn u16tou8(words: &[u16]) -> impl Iterator<Item = u8> + use<'_> {
     words.iter().flat_map(|a| a.to_le_bytes())
@@ -91,35 +101,56 @@ impl Display for FileInfo {
 pub struct FileListIterator<'a, I: KeyboardInterface> {
     keyboard: &'a KeyboardCtl<I>,
     index: u32,
+    receiver: HostRecvReceiver,
 }
 impl<'a, I: KeyboardInterface> FileListIterator<'a, I> {
     fn new(keyboard: &'a KeyboardCtl<I>) -> Self {
-        Self { keyboard, index: 0 }
+        let receiver = keyboard.handle_incomming(host_recv::FILE_INFO).unwrap();
+        Self {
+            keyboard,
+            index: 0,
+            receiver,
+        }
     }
 }
 impl<I: KeyboardInterface> Iterator for FileListIterator<'_, I> {
-    type Item = Result<FileInfo>;
+    type Item = FileInfo;
 
     fn next(&mut self) -> Option<Self::Item> {
         let mut msg = vec![READ_FILE_BY_INDEX];
         msg.extend_from_slice(&self.index.to_le_bytes());
-        if let Err(err) = self.keyboard.intf.bulk_out(self.keyboard.epout, msg) {
-            return Some(Err(anyhow!("USB comms error: {}", err)));
+        if self
+            .keyboard
+            .intf
+            .bulk_out(self.keyboard.epout, msg)
+            .is_err()
+        {
+            return None;
         }
-        let data = match self.keyboard.intf.bulk_in(self.keyboard.epin, MAX_BULK_LEN) {
+
+        let data = match self.receiver.recv() {
             Ok(data) => data,
-            Err(err) => return Some(Err(anyhow!("USB comms error: {}", err))),
+            Err(_) => return None,
         };
 
-        let mut info = FileInfo::from(data.as_slice());
+        let mut info = FileInfo::from(&data[1..]);
         info.index = self.index;
 
         if info.is_none() {
             None
         } else {
             self.index += 1;
-            Some(Ok(info))
+            Some(info)
         }
+    }
+}
+
+pub type HostRecvSender = mpsc::Sender<Vec<u8>>;
+
+pub struct HostRecvReceiver(mpsc::Receiver<Vec<u8>>);
+impl HostRecvReceiver {
+    fn recv(&mut self) -> std::result::Result<Vec<u8>, RecvTimeoutError> {
+        self.0.recv_timeout(Duration::from_millis(200))
     }
 }
 
@@ -127,6 +158,7 @@ pub struct KeyboardCtl<I: KeyboardInterface> {
     intf: I,
     epout: u8,
     epin: u8,
+    handlers: Arc<Mutex<HashMap<u8, HostRecvSender>>>,
 }
 impl KeyboardInterface for nusb::Interface {
     fn bulk_out(&self, endpoint: u8, buf: Vec<u8>) -> Result<()> {
@@ -159,7 +191,12 @@ impl<I: KeyboardInterface> KeyboardCtl<I> {
             })
         }) {
             let intf = dev.claim_interface(i)?;
-            Ok(KeyboardCtl::<nusb::Interface> { intf, epout, epin })
+            Ok(KeyboardCtl::<nusb::Interface> {
+                intf,
+                epout,
+                epin,
+                handlers: Default::default(),
+            })
         } else {
             Err(anyhow!("Keyboard interface not found"))
         }
@@ -211,6 +248,41 @@ impl<I: KeyboardInterface> KeyboardCtl<I> {
 
     pub fn list_files(&self) -> FileListIterator<I> {
         FileListIterator::new(self)
+    }
+
+    pub fn listen(&self) {
+        loop {
+            match self.intf.bulk_in(self.epin, MAX_BULK_LEN) {
+                Ok(msg) if !msg.is_empty() => {
+                    let handler = {
+                        let guard = self.handlers.lock().unwrap();
+                        match guard.get(&msg[0]) {
+                            Some(handler) => handler.clone(),
+                            None => continue,
+                        }
+                    };
+                    if let Err(err) = handler.send(msg) {
+                        eprintln!("{err:?}");
+                    }
+                }
+                Ok(_) => {}
+                Err(err) => {
+                    eprintln!("{err:?}");
+                }
+            }
+        }
+    }
+
+    fn handle_incomming(&self, id: u8) -> Result<HostRecvReceiver> {
+        let mut guard = self.handlers.lock().unwrap();
+
+        if let std::collections::hash_map::Entry::Vacant(e) = guard.entry(id) {
+            let (sender, receiver) = mpsc::channel();
+            e.insert(sender);
+            Ok(HostRecvReceiver(receiver))
+        } else {
+            Err(anyhow!("id {id} in use"))
+        }
     }
 }
 

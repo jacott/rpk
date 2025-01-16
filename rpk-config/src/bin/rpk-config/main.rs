@@ -12,6 +12,8 @@ use std::{
     io::{self, Write},
     path::{Path, PathBuf},
     process,
+    sync::Arc,
+    thread::spawn,
 };
 
 use anyhow::{anyhow, Result};
@@ -290,11 +292,16 @@ impl DeviceFinder {
             print_dev_info(&dev);
         }
 
-        let ctl = finder.get_keyboard()?;
+        let ctl = Arc::new(finder.get_keyboard()?);
+        let ctl2 = ctl.clone();
+
+        spawn(move || {
+            ctl2.listen();
+        });
 
         let mut dups = if args.old { None } else { Some(HashSet::new()) };
 
-        let iter = ctl.list_files().map_while(|r| r.ok()).filter(|i| {
+        let iter = ctl.list_files().filter(|i| {
             if let Some(ref mut dups) = &mut dups {
                 if dups.contains(&i.filename) {
                     false

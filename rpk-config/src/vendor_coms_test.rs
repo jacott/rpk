@@ -1,4 +1,7 @@
-use std::sync::{Arc, Mutex};
+use std::{
+    sync::{Arc, Mutex},
+    thread::spawn,
+};
 
 use super::*;
 
@@ -12,7 +15,7 @@ struct TestInterface {
 impl TestInterface {
     fn add_in(&self, ep: u8, vec: Vec<u8>) {
         let mut guard = self.inp.lock().unwrap();
-        guard.push((ep, vec));
+        guard.insert(0, (ep, vec));
     }
 }
 
@@ -54,18 +57,26 @@ fn file_info_from() {
 
 #[test]
 fn list_files() {
-    let kc = KeyboardCtl::<TestInterface> {
+    let ctl = Arc::new(KeyboardCtl::<TestInterface> {
         epout: 1,
         epin: 2,
         intf: Default::default(),
-    };
+        handlers: Default::default(),
+    });
 
-    let mut data = std::vec![0, 1, 2, 3, 50, 0, 0, 0, 1, 2, 3, 4];
+    let ctl2 = ctl.clone();
+    spawn(move || {
+        ctl2.listen();
+    });
+
+    let mut data = vec![0, 1, 2, 3, 50, 0, 0, 0, 1, 2, 3, 4];
     data.extend_from_slice(b"filename");
 
-    kc.intf.add_in(2, data);
+    ctl.intf.add_in(2, data.clone());
+    ctl.intf.add_in(2, data);
+    ctl.intf.add_in(2, vec![0]);
 
-    let files: Vec<Result<FileInfo>> = kc.list_files().collect();
+    let files: Vec<FileInfo> = ctl.list_files().collect();
 
-    assert_eq!(files.len(), 1);
+    assert_eq!(files.len(), 2);
 }

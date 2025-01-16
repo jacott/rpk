@@ -3,7 +3,7 @@ use crate::{
     ring_fs::{RingFs, RingFsReader, RingFsWriter},
 };
 use embassy_sync::{blocking_mutex::raw::NoopRawMutex, channel::Channel};
-use rpk_common::usb_vendor_message::{self as msg, MAX_BULK_LEN};
+use rpk_common::usb_vendor_message::{self as msg, host_recv, MAX_BULK_LEN};
 
 enum ReceiveState {
     Idle,
@@ -17,16 +17,11 @@ pub struct HostMessage {
     data: [u8; MSG_LEN],
 }
 impl HostMessage {
-    fn not_found() -> Self {
+    fn file_info() -> Self {
         Self {
             len: 0,
-            data: [0; MSG_LEN],
+            data: [host_recv::FILE_INFO; MSG_LEN],
         }
-    }
-    fn file_info() -> Self {
-        let mut msg = Self::not_found();
-        msg.data[0] = 1;
-        msg
     }
 
     pub fn as_slice(&self) -> &[u8] {
@@ -96,7 +91,7 @@ impl<'f, 'c, const N: usize> ConfigInterface<'f, 'c, N> {
                             return;
                         }
                     }
-                    self.host_channel.0.send(HostMessage::not_found()).await;
+                    self.host_channel.0.send(HostMessage::file_info()).await;
                 }
                 n => {
                     crate::error!("Unexpected msg [{}; {}]", n, data.len())

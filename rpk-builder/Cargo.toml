@@ -17,6 +17,7 @@ defmt = { workspace = true, optional = true}
 defmt-rtt = {version = "0.4", optional = true}
 portable-atomic = { version = "1", features = ["critical-section"], optional = true }
 static_cell = "2"
+embassy-futures = { workspace = true }
 embassy-executor = { workspace = true, features = ["executor-thread", "executor-interrupt", "integrated-timers"]}
 embassy-sync = { workspace = true }
 embassy-usb = { workspace = true }
@@ -25,7 +26,6 @@ rpk-macros = { workspace = true }
 rpk-common = { workspace = true }
 
 [dev-dependencies]
-embassy-futures = { workspace = true }
 rpk-firmware = { workspace = true, features = ["test-utils"] }
 critical-section = { version = "1", features = ["std"]}
 embassy-time = { workspace = true }

@@ -103,7 +103,7 @@ impl<'d, D: Driver<'d>> ConfigEndPoint<'d, D> {
         let s = async {
             loop {
                 let msg = host_channel.receive().await;
-                self.write_ep.write(&msg.as_slice()).await.ok();
+                self.write_ep.write(msg.as_slice()).await.ok();
             }
         };
         join(r, s).await;

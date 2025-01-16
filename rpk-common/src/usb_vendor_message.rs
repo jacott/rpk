@@ -6,3 +6,7 @@ pub const READ_FILE_BY_INDEX: u8 = 5;
 
 /// the maximum allowed size of a usb bulk message.
 pub const MAX_BULK_LEN: u16 = 64;
+
+pub mod host_recv {
+    pub const FILE_INFO: u8 = 0;
+}

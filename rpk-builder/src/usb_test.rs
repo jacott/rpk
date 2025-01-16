@@ -74,7 +74,7 @@ fn config_end_point() {
                 Either3::First(_) => panic!("Unexpected run end"),
                 Either3::Second(msg) => {
                     assert_eq!(msg.len(), 13);
-                    assert_eq!(msg, &[1, 80, 0, 0, 0, 8, 0, 0, 0, 6, 7, 8, 9])
+                    assert_eq!(msg, &[0, 80, 0, 0, 0, 8, 0, 0, 0, 6, 7, 8, 9])
                 },
                 Either3::Third(_) => panic!("Timed out"),
 

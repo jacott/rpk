@@ -72,7 +72,7 @@ fn read_file() {
         let msg = ci.host_channel.0.try_receive().unwrap();
         assert_eq!(&msg.data[5..25], &data);
         assert_eq!(msg.len, 24);
-        assert_eq!(msg.data[0], 1);
+        assert_eq!(msg.data[0], 0);
         assert_eq!(
             fw.location(),
             u32::from_le_bytes((&msg.data[1..5]).try_into().unwrap())
