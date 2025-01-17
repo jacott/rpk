@@ -9,13 +9,14 @@ publish = false
 [dependencies]
 cortex-m = { version = "0.7", features = ["inline-asm"] }
 cortex-m-rt = "0.7"
-embassy-executor = { version = "0.6", features = ["task-arena-size-32768"] }
-embassy-usb = { version = "0.3", features = [
+embassy-executor = { version = "0.7", features = ["task-arena-size-32768"] }
+embassy-usb = { version = "0.4", features = [
   "max-interface-count-8",
   "max-handler-count-2",
 ] }
-rpk-builder = { version = "0.2", features = ["rp"]}
 panic-probe = { version = "0.3", features = ["print-defmt"] }
+embassy-rp = { version = "0.3", features = ["rp2040"] }
+rpk-builder = { version = "0.2", features = ["rp"]}
 
 [build-dependencies.rpk-config]
 version = "0.2"
