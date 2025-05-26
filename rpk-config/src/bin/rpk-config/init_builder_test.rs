@@ -5,7 +5,7 @@ use tempfile::tempdir;
 #[test]
 fn build() -> anyhow::Result<()> {
     let tmp_dir = tempdir()?;
-    let root = tmp_dir.into_path();
+    let root = tmp_dir.path();
     let mut builder = KeyboardBuilder::new(root.join("my-keeb"));
 
     builder.chip(ChipType::Rp2040);

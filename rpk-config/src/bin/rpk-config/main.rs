@@ -302,7 +302,7 @@ impl DeviceFinder {
         let mut dups = if args.old { None } else { Some(HashSet::new()) };
 
         let iter = ctl.list_files().filter(|i| {
-            if let Some(ref mut dups) = &mut dups {
+            if let Some(dups) = &mut dups {
                 if dups.contains(&i.filename) {
                     false
                 } else {
@@ -483,7 +483,7 @@ fn list_keycodes(args: &ListKeycodesArgs) -> Result<()> {
         },
         None => true,
     });
-    let mut codes = if let Some(ref pattern) = &args.pattern {
+    let mut codes = if let Some(pattern) = &args.pattern {
         let pattern = pattern.to_lowercase();
         if let Some(hex) = pattern.strip_prefix("0x") {
             let pattern = u16::from_str_radix(hex, 16)?;

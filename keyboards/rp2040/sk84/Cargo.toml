@@ -1,7 +1,7 @@
 [package]
 name = "sk84"
 version = "0.2.0"
-edition = "2021"
+edition = "2024"
 publish = false
 
 [workspace]
@@ -15,7 +15,7 @@ embassy-usb = { version = "0.4", features = [
   "max-handler-count-2",
 ] }
 
-embassy-rp = { version = "0.3", features = ["rp2040"] }
+embassy-rp = { version = "0.4", features = ["rp2040"] }
 rpk-builder = { version = "0.2", features = ["rp", "reset-on-panic"] }
 
 [build-dependencies.rpk-config]

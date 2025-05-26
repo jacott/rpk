@@ -1,7 +1,7 @@
 [package]
 name = "macropad-3x3"
 version = "0.2.0"
-edition = "2021"
+edition = "2024"
 publish = false
 
 [workspace]
@@ -14,8 +14,8 @@ embassy-usb = { version = "0.4", features = [
   "max-interface-count-8",
   "max-handler-count-2",
 ] }
-panic-probe = { version = "0.3", features = ["print-defmt"] }
-embassy-rp = { version = "0.3", features = ["rp2040"] }
+panic-probe = { version = "1", features = ["print-defmt"] }
+embassy-rp = { version = "0.4", features = ["rp2040"] }
 rpk-builder = { version = "0.2", features = ["rp"]}
 
 [build-dependencies.rpk-config]

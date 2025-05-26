@@ -6,7 +6,7 @@ resolver = "2"
 version = "0.2.0"
 description = "Keyboard firmware builder and configuration tool"
 repository = "https://github.com/jacott/rpk"
-edition = "2021"
+edition = "2024"
 publish = true
 license = "MIT"
 keywords = ["embedded", "keyboard-firmware", "usb-hid"]
@@ -19,16 +19,16 @@ rpk-firmware = { version = "0.2", path = "rpk-firmware" }
 rpk-config = { version = "0.2", path = "rpk-config" }
 rpk-macros = { version = "0.2", path = "rpk-macros" }
 
-embassy-sync = "0.6"
+embassy-sync = "0.7"
 embassy-executor = "0.7"
 embassy-usb = "0.4"
 embassy-time = "0.4"
 embassy-time-driver = "0.2"
 embassy-futures = "0.1"
 
-defmt = "0.3"
+defmt = "1"
 syn = {version = "2", features = ["visit-mut", "visit"]}
-proc-macro2 = {version = "1.0.92", features = []}
+proc-macro2 = {version = "1", features = []}
 
 
 

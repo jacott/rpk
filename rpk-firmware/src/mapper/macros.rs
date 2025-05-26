@@ -115,9 +115,9 @@ impl Macro {
 
     pub(crate) fn update(&self, store: &mut [u16]) {
         if let Macro::Sequence {
-            ref mode,
-            ref location,
-            ref rem,
+            mode,
+            location,
+            rem,
         } = &self
         {
             let rem = *rem;

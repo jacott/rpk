@@ -130,7 +130,7 @@ impl<'f, 'c, const N: usize> ConfigInterface<'f, 'c, N> {
                 }
             }
         }
-        if let Some(ref mut fw) = &mut self.fw {
+        if let Some(fw) = &mut self.fw {
             if let Err(err) = fw.write(data) {
                 crate::info!("write failed {:?}", err);
             }

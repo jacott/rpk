@@ -575,7 +575,7 @@ impl<
         let id = code - key_range::MACROS_MIN;
         let mac = self.layout.get_macro(id);
         match &mac {
-            Macro::Modifier(ref key_plus_mod) => {
+            Macro::Modifier(key_plus_mod) => {
                 if is_down {
                     self.write_modifiers(key_plus_mod.1, 10, true);
                     self.run_action(key_plus_mod.0, is_down);
@@ -584,10 +584,10 @@ impl<
                     self.write_modifiers(key_plus_mod.1, -10, true);
                 }
             }
-            Macro::DualAction(ref tap, ref hold, ref t1, ref t2) => {
+            Macro::DualAction(tap, hold, t1, t2) => {
                 self.start_dual_action(is_down, *tap, *hold, *t1, *t2);
             }
-            Macro::TapDance(ref location, ref len) => {
+            Macro::TapDance(location, len) => {
                 if *len > 2 {
                     self.tapdance(*location, *len);
                 }
