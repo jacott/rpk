@@ -14,7 +14,9 @@ use anyhow::{anyhow, Result};
 use chrono::{DateTime, Local, Utc};
 use futures_lite::future::block_on;
 use nusb::transfer::{Direction, RequestBuffer};
-use rpk_common::usb_vendor_message::{self as msg, host_recv, MAX_BULK_LEN, READ_FILE_BY_INDEX};
+use rpk_common::usb_vendor_message::{
+    self as msg, host_recv, FETCH_STATS, MAX_BULK_LEN, READ_FILE_BY_INDEX,
+};
 
 fn u16tou8(words: &[u16]) -> impl Iterator<Item = u8> + use<'_> {
     words.iter().flat_map(|a| a.to_le_bytes())
@@ -154,6 +156,17 @@ impl HostRecvReceiver {
     }
 }
 
+pub struct KeyboardStats {
+    pub uptime: Duration,
+}
+impl From<&[u8]> for KeyboardStats {
+    fn from(value: &[u8]) -> Self {
+        Self {
+            uptime: Duration::from_millis(u32::from_le_bytes(value[..4].try_into().unwrap()) as u64),
+        }
+    }
+}
+
 pub struct KeyboardCtl<I: KeyboardInterface> {
     intf: I,
     epout: u8,
@@ -248,6 +261,19 @@ impl<I: KeyboardInterface> KeyboardCtl<I> {
 
     pub fn list_files(&self) -> FileListIterator<I> {
         FileListIterator::new(self)
+    }
+
+    pub fn fetch_stats(&self) -> Result<KeyboardStats> {
+        let _msg = [FETCH_STATS];
+
+        let mut receiver = self.handle_incomming(host_recv::STATS).unwrap();
+
+        let data = match receiver.recv() {
+            Ok(data) => data,
+            Err(err) => return Err(anyhow!(err)),
+        };
+
+        Ok(KeyboardStats::from(&data[1..]))
     }
 
     pub fn listen(&self) {

@@ -264,15 +264,20 @@ impl DeviceFinder {
         compile_error(file, err.as_str())
     }
 
-    fn ls(&self, args: &LsArgs) -> Result<()> {
-        let dev = if let Some(file) = &args.config_file {
+    fn get_keyboard_controller(
+        &self,
+        config_file: &Option<PathBuf>,
+    ) -> Result<(nusb::DeviceInfo, Arc<KeyboardCtl<nusb::Interface>>)> {
+        let dev = if let Some(file) = config_file {
             match fs::read_to_string(file) {
                 Ok(src) => {
                     let config = compile_file(file, src.as_str())?;
                     Some(DeviceFinder::from_config(&config, self)?)
                 }
 
-                Err(err) => return compile_error(file, err.to_string().as_str()),
+                Err(err) => {
+                    return Err(compile_error(file, err.to_string().as_str()).err().unwrap())
+                }
             }
         } else {
             None
@@ -288,11 +293,16 @@ impl DeviceFinder {
             return Err(anyhow!("keyboard not found"));
         };
 
+        Ok((dev, Arc::new(finder.get_keyboard()?)))
+    }
+
+    fn ls(&self, args: &LsArgs) -> Result<()> {
+        let (dev, ctl) = self.get_keyboard_controller(&args.config_file)?;
+
         if args.verbose {
             print_dev_info(&dev);
         }
 
-        let ctl = Arc::new(finder.get_keyboard()?);
         let ctl2 = ctl.clone();
 
         spawn(move || {
