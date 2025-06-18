@@ -75,6 +75,8 @@ enum Commands {
     USBList,
     /// List files
     Ls(LsArgs),
+    /// Show keyboard statistics
+    Stats(StatsArgs),
     /// Reset (restart) the keyboard
     Reset(ResetArgs),
     /// Validate a keyboard configuation file
@@ -139,6 +141,16 @@ struct LsArgs {
     /// Sort results by name; Defaults to sorting by timestamp
     #[clap(long, short)]
     sort_by_name: bool,
+
+    /// Use config file to select keyboard
+    config_file: Option<PathBuf>,
+}
+
+#[derive(Args)]
+struct StatsArgs {
+    /// Include extra information
+    #[clap(long, short)]
+    verbose: bool,
 
     /// Use config file to select keyboard
     config_file: Option<PathBuf>,
@@ -331,6 +343,26 @@ impl DeviceFinder {
         } else {
             list_files(iter, args.verbose);
         }
+
+        Ok(())
+    }
+
+    fn stats(&self, args: &StatsArgs) -> Result<()> {
+        let (dev, ctl) = self.get_keyboard_controller(&args.config_file)?;
+
+        if args.verbose {
+            print_dev_info(&dev);
+        }
+
+        let ctl2 = ctl.clone();
+
+        spawn(move || {
+            ctl2.listen();
+        });
+
+        let stats = ctl.fetch_stats()?;
+
+        println!("Up since FIXME ({:?}ms)", &stats.uptime);
 
         Ok(())
     }
@@ -566,6 +598,7 @@ fn run(cli: &Cli) -> Result<()> {
         Commands::Upload(args) => finder.upload(args),
         Commands::Validate(args) => validate(args),
         Commands::Ls(args) => finder.ls(args),
+        Commands::Stats(args) => finder.stats(args),
         Commands::USBList => finder.list_usb(),
         Commands::Reset(args) => finder.reset_keyboard(args),
         Commands::KeycodesList(args) => list_keycodes(args),

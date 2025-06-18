@@ -86,6 +86,17 @@ fn read_file() {
 }
 
 #[test]
+fn fetch_stats() {
+    setup!(ci, ctl_sig, fs, {
+        crate::time_driver_test_stub::set_time(91235124);
+        ci.receive(&[msg::FETCH_STATS]).await;
+        let msg = ci.host_channel.0.try_receive().unwrap();
+        assert_eq!(msg.len, 4);
+        assert_eq!(&msg.data[..4], &[1, 99, 100, 1]);
+    });
+}
+
+#[test]
 fn save_config() {
     setup!(ci, ctl_sig, fs, {
         {
