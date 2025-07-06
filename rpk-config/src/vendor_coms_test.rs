@@ -109,5 +109,10 @@ fn stats() {
 
     let stats = ctl.fetch_stats().unwrap();
 
+    let out = ctl.intf.get_out();
+    assert_eq!(out.len(), 1);
+    assert_eq!(out[0].0, 1);
+    assert_eq!(out[0].1, vec![6]);
+
     assert_eq!(stats.uptime, Duration::from_millis(uptime as u64));
 }

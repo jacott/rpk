@@ -362,7 +362,7 @@ impl DeviceFinder {
 
         let stats = ctl.fetch_stats()?;
 
-        println!("Up since FIXME ({:?}ms)", &stats.uptime);
+        println!("Up since FIXME ({:?})", &stats.uptime);
 
         Ok(())
     }

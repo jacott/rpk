@@ -14,9 +14,7 @@ use anyhow::{anyhow, Result};
 use chrono::{DateTime, Local, Utc};
 use futures_lite::future::block_on;
 use nusb::transfer::{Direction, RequestBuffer};
-use rpk_common::usb_vendor_message::{
-    self as msg, host_recv, FETCH_STATS, MAX_BULK_LEN, READ_FILE_BY_INDEX,
-};
+use rpk_common::usb_vendor_message::{self as msg, host_recv, MAX_BULK_LEN, READ_FILE_BY_INDEX};
 
 fn u16tou8(words: &[u16]) -> impl Iterator<Item = u8> + use<'_> {
     words.iter().flat_map(|a| a.to_le_bytes())
@@ -264,9 +262,13 @@ impl<I: KeyboardInterface> KeyboardCtl<I> {
     }
 
     pub fn fetch_stats(&self) -> Result<KeyboardStats> {
-        let _msg = [FETCH_STATS];
+        let msg = vec![msg::FETCH_STATS];
 
         let mut receiver = self.handle_incomming(host_recv::STATS).unwrap();
+
+        self.intf
+            .bulk_out(self.epout, msg)
+            .map_err(|e| anyhow!(e))?;
 
         let data = match receiver.recv() {
             Ok(data) => data,
