@@ -7,7 +7,7 @@ use crate::{f32_to_u16, keycodes};
 pub fn kc(c: &str) -> u16 {
     match keycodes::key_code(c) {
         Some(kc) => kc,
-        None => panic!("Unknown key mnemonic: {:?}", c),
+        None => panic!("Unknown key mnemonic: {c:?}"),
     }
 }
 

@@ -233,7 +233,7 @@ fn parse_firmware(config: &KeyboardConfig) -> Result<(TokenStream, TokenStream, 
         fn get_range(&mut self, key: &str) -> Result<SourceRange> {
             self.0
                 .firmware_get(key)
-                .ok_or_else(|| BuildError(format!("Missing required firmware config: {}", key)))
+                .ok_or_else(|| BuildError(format!("Missing required firmware config: {key}")))
         }
 
         fn get_var(&mut self, key: &str) -> Result<&'a str> {

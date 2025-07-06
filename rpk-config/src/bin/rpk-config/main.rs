@@ -348,7 +348,7 @@ impl DeviceFinder {
 fn list_files(iter: impl IntoIterator<Item = FileInfo>, verbose: bool) {
     if verbose {
         for info in iter {
-            println!("{}", info);
+            println!("{info}");
         }
     } else {
         for info in iter {
@@ -434,7 +434,7 @@ fn validate(args: &ValidateArgs) -> Result<()> {
 }
 
 fn prompt_text(prompt: &str) -> Result<String> {
-    println!("Enter the {}: ", prompt);
+    println!("Enter the {prompt}: ");
     io::stdout().flush().unwrap();
     let mut resp = String::new();
     io::stdin().read_line(&mut resp).unwrap();
@@ -544,7 +544,7 @@ fn main() {
     let result = run(&cli);
 
     if let Err(message) = result {
-        eprintln!("{}", message);
+        eprintln!("{message}");
         process::exit(1);
     };
 }

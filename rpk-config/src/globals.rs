@@ -52,8 +52,7 @@ pub(crate) mod spec {
                     }
                     let dp = *dp as usize;
                     Err(format!(
-                        "Invalid duration; only {min:.*} to {max:.*} milliseconds are valid",
-                        dp, dp
+                        "Invalid duration; only {min:.dp$} to {max:.dp$} milliseconds are valid"
                     ))
                 }
                 _ => panic!("Unsupported"),
@@ -86,7 +85,7 @@ pub(crate) mod spec {
         pub(crate) fn new_default(name: &str) -> Result<GlobalProp, String> {
             super::DEFAULTS
                 .get(name)
-                .ok_or_else(|| format!("Invalid global '{}'", name))
+                .ok_or_else(|| format!("Invalid global '{name}'"))
                 .copied()
         }
 
@@ -173,7 +172,7 @@ pub(crate) mod spec {
     }
 
     fn parse_float(a: &str) -> Result<f32, String> {
-        a.trim().parse::<f32>().map_err(|e| format!("{} {a}", e))
+        a.trim().parse::<f32>().map_err(|e| format!("{e} {a}"))
     }
 
     pub(super) const GLOBALS: [GlobalProp; 7] = [

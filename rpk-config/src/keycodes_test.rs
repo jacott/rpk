@@ -11,7 +11,7 @@ fn modifiers_convert() {
 fn char_to_code_test() {
     fn ccode(c: char) -> u16 {
         let a = char_to_code(unshifted_char_code(c));
-        assert!(a != 0, "invalid char {}", c);
+        assert!(a != 0, "invalid char {c}");
         a
     }
 

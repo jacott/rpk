@@ -321,7 +321,7 @@ impl<'source> Parser<'source> {
             _ => {
                 let p = globals::DEFAULTS.get(name).ok_or_else(|| {
                     error_span(
-                        format!("Invalid global '{}'", name).as_str(),
+                        format!("Invalid global '{name}'").as_str(),
                         name_range.start..name_range.end,
                     )
                 })?;
@@ -490,7 +490,7 @@ impl<'source> Parser<'source> {
                         }
                         self.assert_no_more_values(TOO_MANY_MULTI_ALIAS_RHS)?;
                     } else {
-                        return Err(error_span(format!("key not found! {}", left), left_range));
+                        return Err(error_span(format!("key not found! {left}"), left_range));
                     }
                 }
             }
@@ -588,7 +588,7 @@ impl<'source> Parser<'source> {
             }
         }
 
-        Err(self.error(format!("Expected {} ", c)))
+        Err(self.error(format!("Expected {c} ")))
     }
 
     fn name(&self, name_range: &SourceRange) -> &'source str {
@@ -728,7 +728,7 @@ impl<'source> Parser<'source> {
                 let modifiers =
                     keycodes::modifiers_to_bit_map(modifier_prefix).ok_or_else(|| {
                         ConfigError::new(
-                            format!("Invalid modifiers '{}'", modifier_prefix),
+                            format!("Invalid modifiers '{modifier_prefix}'"),
                             name_range.start..name_range.start + modifier_prefix.len(),
                         )
                     })?;
@@ -857,10 +857,7 @@ impl<'source> Parser<'source> {
         if let Some(index) = self.config.get_layer_index(name) {
             Ok(index)
         } else {
-            Err(error_span(
-                format!("Unknown layer name {}", name),
-                name_range,
-            ))
+            Err(error_span(format!("Unknown layer name {name}"), name_range))
         }
     }
 
@@ -1071,7 +1068,7 @@ impl<'source> KeyboardConfig<'source> {
         }
 
         for i in DEFAULT_LAYERS.len()..layer_count {
-            let name = format!("layer{}", i);
+            let name = format!("layer{i}");
             config.new_layer(name.as_str(), 0);
             let layer = config.layers.get_mut(name.as_str()).unwrap();
             layer.deserialize(
@@ -1396,7 +1393,7 @@ impl<'source> KeyboardConfig<'source> {
                     ));
                 }
                 let code = keycodes::modifiers_to_bit_map(suffix).ok_or_else(|| {
-                    ConfigError::new(format!("Invalid layer suffix '{}'", suffix), e + 1..i)
+                    ConfigError::new(format!("Invalid layer suffix '{suffix}'"), e + 1..i)
                 })?;
 
                 if let Some(layer) = self.layers.get(name) {
