@@ -256,7 +256,7 @@ const fn assert_sizes<const LAYOUT_MAX: usize, const REPORT_BUFFER_SIZE: usize>(
     true
 }
 
-pub type KeyScanLog = PubSubChannel<NoopRawMutex, TimedScanKey, 5, 1, 1>;
+pub type KeyScanLog = PubSubChannel<NoopRawMutex, ScanKey, 5, 1, 1>;
 
 pub struct Mapper<
     'c,
@@ -384,9 +384,8 @@ impl<
             // now look for events
             match event {
                 Either::First(scan_key) => {
-                    let tsk = TimedScanKey(scan_key, self.now);
-                    key_scan_log.publish_immediate(tsk);
-                    self.key_switch(tsk)
+                    key_scan_log.publish_immediate(scan_key);
+                    self.key_switch(TimedScanKey(scan_key, self.now))
                 }
                 Either::Second(ControlMessage::TimerExpired) => self.check_time(),
                 Either::Second(ControlMessage::Exit) => return ControlMessage::Exit,

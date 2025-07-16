@@ -1972,7 +1972,6 @@ fn run_loop() {
 c = macro(hold(aabbccddeeff) release(fedcba))
 "#,
             {
-                let beforet = Instant::now().as_millis();
                 extern crate alloc;
                 use alloc::vec;
 
@@ -2040,12 +2039,9 @@ c = macro(hold(aabbccddeeff) release(fedcba))
                 assert_read!(E KeyEvent::Clear);
 
                 if let WaitResult::Message(msg) = ksl_sub.try_next_message().unwrap() {
-                    let aftert = Instant::now().as_millis();
-                    assert!(msg.1 >= beforet);
-                    assert!(msg.1 <= aftert);
-                    assert_eq!(msg.0.row(), 0);
-                    assert_eq!(msg.0.column(), 2);
-                    assert!(!msg.0.is_down());
+                    assert_eq!(msg.row(), 0);
+                    assert_eq!(msg.column(), 2);
+                    assert!(!msg.is_down());
                 } else {
                     panic!("expected a message");
                 }
