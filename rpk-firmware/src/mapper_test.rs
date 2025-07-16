@@ -1,7 +1,7 @@
 use core::{str, sync::atomic};
 
 use embassy_futures::{block_on, join::join};
-use embassy_sync::blocking_mutex::raw::NoopRawMutex;
+use embassy_sync::{blocking_mutex::raw::NoopRawMutex, pubsub::WaitResult};
 use key_range::{LAYER_MIN, MACROS_MIN};
 
 use crate::kc;
@@ -34,7 +34,7 @@ macro_rules! setup {
 
             macro_rules! $assert_read {
                 (NONE) => {{
-                    match mapper_channel.0.try_receive() {
+                    match mapper_channel.key_event.try_receive() {
                         Ok(ans) => {
                             assert!(false, "Unexpected key event {:?}", ans);
                         }
@@ -42,7 +42,7 @@ macro_rules! setup {
                     }
                 }};
                 ($e1:expr, $e2:expr) => {{
-                    match mapper_channel.0.try_receive() {
+                    match mapper_channel.key_event.try_receive() {
                         Ok(ans) => {
                             assert_eq!(ans, KeyEvent::basic(kc!($e2) as u8, $e1 == 1));
                         }
@@ -56,7 +56,7 @@ macro_rules! setup {
                     $assert_read!(KEY_UP, $e);
                 }};
                 (E $e:expr) => {{
-                    if let Ok(ans) = mapper_channel.0.try_receive() {
+                    if let Ok(ans) = mapper_channel.key_event.try_receive() {
                         assert_eq!(ans, $e);
                     } else {
                         assert!(false, "Expected key event");
@@ -1972,15 +1972,19 @@ fn run_loop() {
 c = macro(hold(aabbccddeeff) release(fedcba))
 "#,
             {
+                let beforet = Instant::now().as_millis();
                 extern crate alloc;
                 use alloc::vec;
 
                 let ksc = KeyScannerChannel::<NoopRawMutex, 32>::default();
+                let ksl = KeyScanLog::new();
+                let mut ksl_sub = ksl.subscriber().expect("too many subscribers");
+
                 press!(0, 2, true);
                 ksc.try_send(ScanKey::new(0, 2, false));
                 t.report_channel.timer().signal(ControlMessage::Exit);
 
-                let reader = &t.report_channel.0;
+                let reader = &t.report_channel.key_event;
 
                 let f1 = async {
                     let mut v = std::vec::Vec::new();
@@ -1995,8 +1999,8 @@ c = macro(hold(aabbccddeeff) release(fedcba))
                 };
 
                 let f2 = async {
-                    t.run(&ksc).await;
-                    t.report_channel.0.send(KeyEvent::Pending).await;
+                    t.run(&ksc, &ksl).await;
+                    t.report_channel.key_event.send(KeyEvent::Pending).await;
                 };
 
                 let msgs = join(f1, f2).await.0;
@@ -2029,11 +2033,22 @@ c = macro(hold(aabbccddeeff) release(fedcba))
                     .signal(ControlMessage::LoadLayout { file_location: 123 });
 
                 assert!(matches!(
-                    t.run(&ksc).await,
+                    t.run(&ksc, &ksl).await,
                     ControlMessage::LoadLayout { file_location: 123 }
                 ));
 
                 assert_read!(E KeyEvent::Clear);
+
+                if let WaitResult::Message(msg) = ksl_sub.try_next_message().unwrap() {
+                    let aftert = Instant::now().as_millis();
+                    assert!(msg.1 >= beforet);
+                    assert!(msg.1 <= aftert);
+                    assert_eq!(msg.0.row(), 0);
+                    assert_eq!(msg.0.column(), 2);
+                    assert!(!msg.0.is_down());
+                } else {
+                    panic!("expected a message");
+                }
             }
         );
     });

@@ -15,6 +15,7 @@ pub async fn run<
     layout_mapping: &'d [u16],
     key_scan_channel: &'d key_scanner::KeyScannerChannel<NoopRawMutex, SCANNER_BUFFER_SIZE>,
     mapper_channel: &'d mapper::MapperChannel<NoopRawMutex, REPORT_BUFFER_SIZE>,
+    key_scan_log: &'d mapper::KeyScanLog,
     fs: &'d dyn ring_fs::RingFs<'d>,
     debounce_ms_atomic: &'d AtomicU16,
 ) {
@@ -46,7 +47,7 @@ pub async fn run<
 
     loop {
         if let mapper::ControlMessage::LoadLayout { file_location } =
-            mapper.run(key_scan_channel).await
+            mapper.run(key_scan_channel, key_scan_log).await
         {
             crate::debug!("load layout here {}", file_location);
             match fs.file_reader_by_location(file_location) {

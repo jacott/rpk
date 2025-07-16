@@ -5,6 +5,7 @@ use embassy_futures::select::{select, Either};
 use embassy_sync::{
     blocking_mutex::raw::{NoopRawMutex, RawMutex},
     channel::Channel,
+    pubsub::{PubSubBehavior, PubSubChannel},
     signal::Signal,
 };
 use embassy_time::{Instant, Timer};
@@ -185,29 +186,33 @@ impl MapperTimer {
     }
 
     fn get_expires_at(&self) -> Instant {
-        let guard = self.expires_at.borrow();
-        *guard
+        *self.expires_at.borrow()
     }
 
     fn set_expires_at(&self, expires_at: Instant) {
-        let mut guard = self.expires_at.borrow_mut();
-        *guard = expires_at;
+        *self.expires_at.borrow_mut() = expires_at;
     }
 }
 
-pub struct MapperChannel<M: RawMutex, const N: usize>(Channel<M, KeyEvent, N>, MapperTimer);
+pub struct MapperChannel<M: RawMutex, const N: usize> {
+    key_event: Channel<M, KeyEvent, N>,
+    timer: MapperTimer,
+}
 impl<M: RawMutex, const N: usize> Default for MapperChannel<M, N> {
     fn default() -> Self {
-        Self(Channel::new(), MapperTimer::default())
+        Self {
+            key_event: Channel::new(),
+            timer: MapperTimer::default(),
+        }
     }
 }
 impl<M: RawMutex, const N: usize> MapperChannel<M, N> {
     pub async fn receive(&self) -> KeyEvent {
-        self.0.receive().await
+        self.key_event.receive().await
     }
 
     pub fn timer(&self) -> &MapperTimer {
-        &self.1
+        &self.timer
     }
 
     async fn wait_control(&self) -> ControlMessage {
@@ -215,18 +220,18 @@ impl<M: RawMutex, const N: usize> MapperChannel<M, N> {
     }
 
     pub fn control(&self) -> &ControlSignal {
-        &self.1.ctl_sig
+        &self.timer.ctl_sig
     }
 
     fn report(&self, message: KeyEvent) {
-        if self.0.try_send(message).is_err() {
+        if self.key_event.try_send(message).is_err() {
             self.clear_reports();
-            let _ = self.0.try_send(KeyEvent::Clear);
+            let _ = self.key_event.try_send(KeyEvent::Clear);
         }
     }
 
     fn clear_reports(&self) {
-        self.0.clear();
+        self.key_event.clear();
     }
 }
 
@@ -250,6 +255,8 @@ const fn assert_sizes<const LAYOUT_MAX: usize, const REPORT_BUFFER_SIZE: usize>(
     assert!(LAYOUT_MAX > 64);
     true
 }
+
+pub type KeyScanLog = PubSubChannel<NoopRawMutex, TimedScanKey, 5, 1, 1>;
 
 pub struct Mapper<
     'c,
@@ -351,6 +358,7 @@ impl<
     pub async fn run<const SCANNER_BUFFER_SIZE: usize>(
         &mut self,
         key_scan_channel: &'c KeyScannerChannel<M, SCANNER_BUFFER_SIZE>,
+        key_scan_log: &'c KeyScanLog,
     ) -> ControlMessage {
         'outer: loop {
             // run this first because no macros may be present when running memos
@@ -375,7 +383,11 @@ impl<
 
             // now look for events
             match event {
-                Either::First(scan_key) => self.key_switch(TimedScanKey(scan_key, self.now)),
+                Either::First(scan_key) => {
+                    let tsk = TimedScanKey(scan_key, self.now);
+                    key_scan_log.publish_immediate(tsk);
+                    self.key_switch(tsk)
+                }
                 Either::Second(ControlMessage::TimerExpired) => self.check_time(),
                 Either::Second(ControlMessage::Exit) => return ControlMessage::Exit,
                 Either::Second(ctl) => {
@@ -936,7 +948,7 @@ impl<
     }
 
     fn room_to_report(&self) -> bool {
-        self.report_channel.0.free_capacity() >= MIN_REPORT_BUFFER_SIZE
+        self.report_channel.key_event.free_capacity() >= MIN_REPORT_BUFFER_SIZE
     }
 
     async fn wait_for_report_capacity(&self) {
