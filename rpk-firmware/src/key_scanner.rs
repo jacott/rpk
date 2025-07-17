@@ -57,6 +57,10 @@ impl ScanKey {
         self.row as u16 | ((self.col as u16) << 8)
     }
 
+    pub fn as_memo_bytes(&self) -> (u8, u8) {
+        (self.row, self.col)
+    }
+
     pub fn from_memo(memo: u16) -> Self {
         Self {
             row: memo as u8,

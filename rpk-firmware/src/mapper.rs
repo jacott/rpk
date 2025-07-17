@@ -5,7 +5,7 @@ use embassy_futures::select::{select, Either};
 use embassy_sync::{
     blocking_mutex::raw::{NoopRawMutex, RawMutex},
     channel::Channel,
-    pubsub::{PubSubBehavior, PubSubChannel},
+    pubsub::PubSubChannel,
     signal::Signal,
 };
 use embassy_time::{Instant, Timer};
@@ -24,6 +24,8 @@ pub mod config_loader;
 pub(crate) mod dual_action;
 pub(crate) mod macros;
 pub(crate) mod mouse;
+
+pub type KeyScanLog = PubSubChannel<NoopRawMutex, ScanKey, 5, 1, 1>;
 
 #[derive(Copy, Clone, Debug)]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
@@ -124,12 +126,17 @@ pub enum ControlMessage {
     LoadLayout { file_location: u32 },
     TimerExpired,
     Exit,
+    LogKeys(Option<&'static KeyScanLog>),
 }
 #[derive(Default)]
 pub struct ControlSignal(Signal<NoopRawMutex, ControlMessage>);
 impl ControlSignal {
     pub fn load_layout(&self, file_location: u32) {
         self.0.signal(ControlMessage::LoadLayout { file_location });
+    }
+
+    pub fn log_keys(&self, key_logger: &'static KeyScanLog) {
+        self.0.signal(ControlMessage::LogKeys(Some(key_logger)));
     }
 
     #[cfg(test)]
@@ -256,8 +263,6 @@ const fn assert_sizes<const LAYOUT_MAX: usize, const REPORT_BUFFER_SIZE: usize>(
     true
 }
 
-pub type KeyScanLog = PubSubChannel<NoopRawMutex, ScanKey, 5, 1, 1>;
-
 pub struct Mapper<
     'c,
     const ROW_COUNT: usize,
@@ -358,7 +363,6 @@ impl<
     pub async fn run<const SCANNER_BUFFER_SIZE: usize>(
         &mut self,
         key_scan_channel: &'c KeyScannerChannel<M, SCANNER_BUFFER_SIZE>,
-        key_scan_log: &'c KeyScanLog,
     ) -> ControlMessage {
         'outer: loop {
             // run this first because no macros may be present when running memos
@@ -384,7 +388,7 @@ impl<
             // now look for events
             match event {
                 Either::First(scan_key) => {
-                    key_scan_log.publish_immediate(scan_key);
+                    //                    key_scan_log.publish_immediate(scan_key);
                     self.key_switch(TimedScanKey(scan_key, self.now))
                 }
                 Either::Second(ControlMessage::TimerExpired) => self.check_time(),

@@ -39,6 +39,17 @@ impl HostMessage {
     pub fn as_slice(&self) -> &[u8] {
         &self.data[..(self.len + 1)]
     }
+
+    pub fn key_scan() -> Self {
+        let mut data = [0; MSG_LEN];
+        data[0] = host_recv::KEY_SCAN;
+        Self { len: 3, data }
+    }
+
+    pub fn set_key(&mut self, memo_bytes: (u8, u8)) {
+        self.data[1] = memo_bytes.0;
+        self.data[2] = memo_bytes.1;
+    }
 }
 
 pub struct HostChannel<const N: usize>(Channel<NoopRawMutex, HostMessage, N>);

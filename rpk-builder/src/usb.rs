@@ -1,4 +1,4 @@
-use embassy_futures::join::join;
+use embassy_futures::{join::join, select::select};
 use embassy_usb::{
     class::hid::{ReportId, RequestHandler},
     control::OutResponse,
@@ -7,8 +7,8 @@ use embassy_usb::{
 };
 use rpk_common::usb_vendor_message::MAX_BULK_LEN;
 use rpk_firmware::{
-    config::ConfigInterface,
-    hid,
+    config::{ConfigInterface, HostMessage},
+    hid, mapper,
     usb::{Configurator, State, SHARED_REPORT_DESC},
 };
 
@@ -87,7 +87,7 @@ pub struct ConfigEndPoint<'d, D: Driver<'d>> {
     write_ep: D::EndpointIn,
 }
 impl<'d, D: Driver<'d>> ConfigEndPoint<'d, D> {
-    pub async fn run(&mut self) {
+    pub async fn run(&mut self, key_logger: &'d mapper::KeyScanLog) {
         let host_channel = self.config_interface.host_channel;
         let r = async {
             let mut buf = [0; MAX_BULK_LEN as usize];
@@ -101,9 +101,18 @@ impl<'d, D: Driver<'d>> ConfigEndPoint<'d, D> {
             }
         };
         let s = async {
+            let mut key_logger = key_logger.subscriber().unwrap();
+            let mut key_msg = HostMessage::key_scan();
             loop {
-                let msg = host_channel.receive().await;
-                self.write_ep.write(msg.as_slice()).await.ok();
+                match select(host_channel.receive(), key_logger.next_message_pure()).await {
+                    embassy_futures::select::Either::First(msg) => {
+                        let _ = self.write_ep.write(msg.as_slice()).await;
+                    }
+                    embassy_futures::select::Either::Second(key) => {
+                        key_msg.set_key(key.as_memo_bytes());
+                        let _ = self.write_ep.write(key_msg.as_slice()).await;
+                    }
+                }
             }
         };
         join(r, s).await;
