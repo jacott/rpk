@@ -42,7 +42,6 @@ macro_rules! rp_run_keyboard {
         type ConfigInterface = config::ConfigInterface<'static, 'static, 2>;
 
         static KEY_SCAN_CHANNEL: StaticCell<ScanChannel> = StaticCell::new();
-        static KEY_LOGGER: StaticCell<mapper::KeyScanLog> = StaticCell::new();
         static MAPPER_CHANNEL: StaticCell<MapperChannel> = StaticCell::new();
 
         type HostChannel = config::HostChannel<2>;
@@ -123,9 +122,8 @@ macro_rules! rp_run_keyboard {
         #[embassy_executor::task]
         async fn vendor_interface(
             mut config_ep: usb::ConfigEndPoint<'static, Driver<'static, USB>>,
-            key_logger: &'static mapper::KeyScanLog,
         ) {
-            config_ep.run(key_logger).await;
+            config_ep.run().await;
         }
 
         #[embassy_executor::task]
@@ -139,7 +137,6 @@ macro_rules! rp_run_keyboard {
             let (input_pins, output_pins) = config_pins!(peripherals: p);
 
             let key_scan_channel: &'static ScanChannel = KEY_SCAN_CHANNEL.init(ScanChannel::default());
-            let key_logger: &'static mapper::KeyScanLog = KEY_LOGGER.init(mapper::KeyScanLog::new());
             let mapper_channel: &'static MapperChannel = MAPPER_CHANNEL.init(MapperChannel::default());
 
             let flash: &'static mut Flash = FLASH.init(Flash::new(p.FLASH, p.DMA_CH0));
@@ -173,7 +170,7 @@ macro_rules! rp_run_keyboard {
             spawner.spawn(mapper(&LAYOUT_MAPPING, key_scan_channel, mapper_channel, fs)).unwrap();
             spawner.spawn(hid_reporter(mapper_channel, shared_hid_writer)).unwrap();
             spawner.spawn(hid_reader(shared_hid_reader)).unwrap();
-            spawner.spawn(vendor_interface(config_ep, key_logger)).unwrap();
+            spawner.spawn(vendor_interface(config_ep)).unwrap();
 
             usb.run().await;
         }

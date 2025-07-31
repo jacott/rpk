@@ -63,7 +63,6 @@ fn config_builder() {
 
 #[test]
 fn config_end_point() {
-    let key_logger = mapper::KeyScanLog::new();
     setup!(
         fs,
         messages,
@@ -71,7 +70,7 @@ fn config_end_point() {
             let mut fw = fs.create_file().unwrap();
             fw.write(&[8,0,0,0,6,7,8,9]).unwrap();
             cfg_ep.read_ep.messages.send(std::vec![msg::READ_FILE_BY_INDEX,0,0,0,0]).await;
-            match select3(cfg_ep.run(&key_logger), messages.receive(), Timer::after_millis(200)).await {
+            match select3(cfg_ep.run(), messages.receive(), Timer::after_millis(200)).await {
                 Either3::First(_) => panic!("Unexpected run end"),
                 Either3::Second(msg) => {
                     assert_eq!(msg.len(), 13);

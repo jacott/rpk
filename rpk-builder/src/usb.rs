@@ -87,7 +87,7 @@ pub struct ConfigEndPoint<'d, D: Driver<'d>> {
     write_ep: D::EndpointIn,
 }
 impl<'d, D: Driver<'d>> ConfigEndPoint<'d, D> {
-    pub async fn run(&mut self, key_logger: &'d mapper::KeyScanLog) {
+    pub async fn run(&mut self) {
         let host_channel = self.config_interface.host_channel;
         let r = async {
             let mut buf = [0; MAX_BULK_LEN as usize];
@@ -101,6 +101,7 @@ impl<'d, D: Driver<'d>> ConfigEndPoint<'d, D> {
             }
         };
         let s = async {
+            let key_logger = mapper::KEY_SCAN_LOGGER.get();
             let mut key_logger = key_logger.subscriber().unwrap();
             let mut key_msg = HostMessage::key_scan();
             loop {

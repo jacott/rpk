@@ -5,7 +5,8 @@ use embassy_futures::select::{select, Either};
 use embassy_sync::{
     blocking_mutex::raw::{NoopRawMutex, RawMutex},
     channel::Channel,
-    pubsub::PubSubChannel,
+    lazy_lock::LazyLock,
+    pubsub::{PubSubBehavior, PubSubChannel},
     signal::Signal,
 };
 use embassy_time::{Instant, Timer};
@@ -26,6 +27,8 @@ pub(crate) mod macros;
 pub(crate) mod mouse;
 
 pub type KeyScanLog = PubSubChannel<NoopRawMutex, ScanKey, 5, 1, 1>;
+
+pub static KEY_SCAN_LOGGER: LazyLock<KeyScanLog> = LazyLock::new(KeyScanLog::new);
 
 #[derive(Copy, Clone, Debug)]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
@@ -126,7 +129,7 @@ pub enum ControlMessage {
     LoadLayout { file_location: u32 },
     TimerExpired,
     Exit,
-    LogKeys(Option<&'static KeyScanLog>),
+    LogKeys(bool),
 }
 #[derive(Default)]
 pub struct ControlSignal(Signal<NoopRawMutex, ControlMessage>);
@@ -135,8 +138,8 @@ impl ControlSignal {
         self.0.signal(ControlMessage::LoadLayout { file_location });
     }
 
-    pub fn log_keys(&self, key_logger: &'static KeyScanLog) {
-        self.0.signal(ControlMessage::LogKeys(Some(key_logger)));
+    pub fn log_keys(&self, on: bool) {
+        self.0.signal(ControlMessage::LogKeys(on));
     }
 
     #[cfg(test)]
@@ -364,6 +367,7 @@ impl<
         &mut self,
         key_scan_channel: &'c KeyScannerChannel<M, SCANNER_BUFFER_SIZE>,
     ) -> ControlMessage {
+        let mut key_logging = false;
         'outer: loop {
             // run this first because no macros may be present when running memos
             while !matches!(self.macro_running, Macro::Noop) {
@@ -388,11 +392,15 @@ impl<
             // now look for events
             match event {
                 Either::First(scan_key) => {
-                    //                    key_scan_log.publish_immediate(scan_key);
+                    if key_logging {
+                        let logger = KEY_SCAN_LOGGER.get();
+                        logger.publish_immediate(scan_key);
+                    }
                     self.key_switch(TimedScanKey(scan_key, self.now))
                 }
                 Either::Second(ControlMessage::TimerExpired) => self.check_time(),
                 Either::Second(ControlMessage::Exit) => return ControlMessage::Exit,
+                Either::Second(ControlMessage::LogKeys(on)) => key_logging = on,
                 Either::Second(ctl) => {
                     self.clear_all();
                     return ctl;
