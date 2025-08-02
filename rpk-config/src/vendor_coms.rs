@@ -257,7 +257,7 @@ impl<I: KeyboardInterface> KeyboardCtl<I> {
             .map_err(|err| anyhow!("USB comms error: {}", err))
     }
 
-    pub fn list_files(&self) -> FileListIterator<I> {
+    pub fn list_files(&self) -> FileListIterator<'_, I> {
         FileListIterator::new(self)
     }
 

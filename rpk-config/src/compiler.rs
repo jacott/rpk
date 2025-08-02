@@ -1550,7 +1550,7 @@ fn error_span(message: impl Into<String>, range: SourceRange) -> ConfigError {
     ConfigError::new(message.into(), range)
 }
 
-pub fn compile(path: PathBuf, source: &str) -> Result<KeyboardConfig> {
+pub fn compile(path: PathBuf, source: &str) -> Result<KeyboardConfig<'_>> {
     let mut parser = Parser::new(path, source);
 
     parser.parse_sections()?;

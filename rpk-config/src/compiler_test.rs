@@ -6,11 +6,11 @@ use crate::{globals::spec::GlobalType, test::kc};
 
 use super::*;
 
-pub fn pretty_compile(src: &str) -> Result<KeyboardConfig> {
+pub fn pretty_compile(src: &str) -> Result<KeyboardConfig<'_>> {
     crate::pretty_compile(Path::new("test"), src)
 }
 
-pub fn test_compile(source: &str) -> Result<KeyboardConfig> {
+pub fn test_compile(source: &str) -> Result<KeyboardConfig<'_>> {
     compile(PathBuf::from(""), source)
 }
 
