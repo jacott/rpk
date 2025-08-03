@@ -24,6 +24,7 @@ pub struct TapDance {
     pub(crate) location: u32,
     pub(crate) tap_timeout: u16,
     pub(crate) rem: u16,
+    pub(crate) action_mods: u8,
 }
 impl TapDance {
     pub(crate) fn is_running(&self) -> bool {
@@ -35,11 +36,12 @@ impl TapDance {
         self.wait_until = u64::MAX;
     }
 
-    pub(crate) fn start(&mut self, tap_timeout: u16, location: u32, rem: u16) {
+    pub(crate) fn start(&mut self, tap_timeout: u16, location: u32, rem: u16, action_mods: u8) {
         self.wait_until = u64::MAX;
         self.location = location;
         self.tap_timeout = tap_timeout;
         self.rem = rem;
+        self.action_mods = action_mods;
     }
 
     pub(crate) fn is_same(&self, location: u32, len: u16) -> bool {
@@ -53,6 +55,7 @@ impl Default for TapDance {
             location: 0,
             tap_timeout: u16::MAX,
             rem: 0,
+            action_mods: 0,
         }
     }
 }

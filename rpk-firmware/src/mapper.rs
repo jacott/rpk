@@ -474,6 +474,7 @@ impl<
             }
         } else {
             let kc = self.active_actions[k.row()][k.column()];
+            self.active_actions[k.row()][k.column()] = KeyPlusMod::none();
             self.run_action(kc.0, false);
 
             if rc != self.report_count && kc.1 != 0 {
@@ -496,6 +497,7 @@ impl<
             let clear = !(self.pending_up_modifiers & self.pending_down_modifiers);
             let up_mods = self.pending_up_modifiers & clear;
             let down_mods = self.pending_down_modifiers & clear;
+
             if up_mods != 0 {
                 self.report_channel.report(KeyEvent::modifiers(
                     up_mods,
@@ -705,7 +707,10 @@ impl<
         if !self.tapdance.is_same(location, len) {
             let tl = location as usize;
             let tap_timeout = self.layout.macro_code(tl);
-            self.tapdance.start(tap_timeout, location + 1, len - 1);
+            let k = self.last_scan_key.0;
+            let action_mods = self.active_actions[k.row()][k.column()].1;
+            self.tapdance
+                .start(tap_timeout, location + 1, len - 1, action_mods);
         }
 
         if self.tapdance.rem < 2 {
@@ -732,21 +737,17 @@ impl<
 
     fn tapdance_timeout(&mut self) {
         let location = self.tapdance.location as usize - 1;
+        let action_mods = self.tapdance.action_mods;
         let action = self.layout.macro_code(location);
 
         self.tapdance.clear();
         self.set_wait_time();
 
         let k = self.last_scan_key.0;
-        let mut aa = self.active_actions[k.row()][k.column()];
-        let m = aa.1;
-
-        if m != 0 {
-            self.write_modifiers(m, -1, true);
+        if action_mods != 0 {
+            self.write_modifiers(action_mods, -1, true);
         }
-        aa.0 = action;
-        aa.1 = m;
-        self.active_actions[k.row()][k.column()] = aa;
+        self.active_actions[k.row()][k.column()] = KeyPlusMod::new(action, action_mods);
         if k.is_down() {
             self.run_action(action, true);
         } else {

@@ -124,6 +124,81 @@ v = G-3
 }
 
 #[test]
+fn layer_stuck_bug() {
+    setup!(
+        RC 3,3,t,
+        press,
+        assert_read,
+        r#"
+[matrix:3x3]
+
+0x00 = 7 8 9
+0x10 = 4 5 6
+0x20 = 1 2 3
+
+[main]
+
+7 = toggle(locked)
+9 = clear_all
+1 = overload(layer5, a)
+
+[layer5]
+
+0x10 = G-4
+0x00 = G-1
+
+[locked]
+
+0x00 = noop noop noop
+0x10 = noop noop noop
+0x20 = noop noop noop
+
+6 = toggle(locked)
+"#,
+        {
+            let mut now = 100;
+
+            macro_rules! advance {
+                ($t:expr) => {
+                    now += $t;
+                    t.now = now;
+                    t.check_time();
+                };
+            }
+
+            advance!(0);
+
+            for _ in 0..2 {
+                // bug triggered by 7 1-4 6 1-4
+                press!(0, 0, TAP); // 7
+                press!(2, 0, true); // 1-4
+                press!(1, 0, TAP);
+                advance!(500);
+
+                assert!(t.active_actions[1][0] == KeyPlusMod::none(), "{:?}", t.active_actions[1][0]);
+                press!(2, 0, false);
+                press!(1, 2, TAP); // 6
+                assert!(t.memo_count == 0);
+
+                press!(2, 0, true); // 1-4
+                press!(1, 0, TAP);
+                advance!(500);
+                assert!(t.run_memo());
+                press!(2, 0, false);
+                advance!(500);
+                assert!(t.run_memo());
+
+                assert_read!(E PendingModifiers(8,true));
+                assert_read!(KEY_DOWN, "4");
+                assert_read!(KEY_UP, "4");
+                assert_read!(E Modifiers(8,false));
+            }
+
+        }
+    );
+}
+
+#[test]
 fn reset() {
     setup!(
         press,
@@ -214,7 +289,7 @@ a = q
             assert_read!(E PendingModifiers(2, true));
             assert_read!(E KeyEvent::mouse_button(1));
 
-            t.tapdance.start(155, 6, 1);
+            t.tapdance.start(155, 6, 1, 0);
             t.tapdance.wait_until = 123;
 
             t.clear_all();
@@ -599,7 +674,7 @@ a = setlayout(mylayout)
 }
 
 #[test]
-fn onshot() {
+fn oneshot() {
     setup!(
         press,
         assert_read,
