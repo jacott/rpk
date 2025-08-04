@@ -108,21 +108,31 @@ pub struct KeyScanner<
     const OUTPUT_N: usize,
     const PS: usize,
 > {
+    channel: &'c KeyScannerChannel<M, PS>,
+
     input_pins: [I; INPUT_N],
     output_pins: [O; OUTPUT_N],
+
     /// Keeps track of all key switch changes and debounce settling timer.  > 3 indicates debouncing,
     /// bits 7-2 are debounce counter, bit 1 indicates last reported switch position, bit 0 indicates
     /// actual switch position.
     state: [[u8; INPUT_N]; OUTPUT_N],
+
+    /// The expected time it takes to scan each output pin.
+    time_per_output_pin: Duration,
+
+    /// The last time all keys were up.
+    idle_start: Instant,
     all_up: bool,
     all_up_limit: u32,
-    channel: &'c KeyScannerChannel<M, PS>,
+
+    /// How many scan cycles have been completed since the last time all keys were up.
     cycle: u32,
+
     debounce_modulus: u32,
     debounce_divisor: u32,
-    pin_wait: Duration,
-    now: Instant,
-    clock: Instant,
+
+    /// The configuarable time to wait for a key to debounce. The format is compressed.
     debounce_ms_atomic: &'c atomic::AtomicU16,
 }
 impl<
@@ -151,9 +161,8 @@ impl<
             cycle: 0,
             debounce_modulus: 0,
             debounce_divisor: 0,
-            pin_wait: Duration::from_micros(5),
-            now: Instant::now(),
-            clock: Instant::now(),
+            time_per_output_pin: Duration::from_micros(5),
+            idle_start: Instant::now(),
             debounce_ms_atomic,
         };
 
@@ -176,15 +185,12 @@ impl<
 
     pub async fn wait_for_key(&mut self) {
         {
-            // calc pin_wait; make twice what's needed so idle half the time
-            let t = (Instant::now() - self.clock).as_micros() as u32;
-            let t = (t.max(20) - 20) / self.cycle; // cycle duration with 20µs leeway
-            let pw = t / (OUTPUT_N as u32);
-            let opw = self.pin_wait.as_micros() as u32;
-            if opw < pw {
-                self.pin_wait = Duration::from_micros((pw << 1).clamp(1, 300) as u64);
-            }
+            // calc pin_wait; make it so idle half the time
+            let t = (Instant::now() - self.idle_start).as_micros() as u32 >> 1;
+            let pw = ((t / OUTPUT_N as u32) / self.cycle) << 1;
+            self.time_per_output_pin = Duration::from_micros(pw.clamp(10, 1000) as u64);
         }
+        self.calc_debounce_cycle();
         self.all_up = false;
 
         for out in self.output_pins.iter_mut() {
@@ -203,12 +209,12 @@ impl<
         for out in self.output_pins.iter_mut() {
             let _ = out.set_high();
         }
-
-        self.calc_debounce_cycle();
-        self.now = Instant::now();
     }
 
     pub async fn scan<const ROW_IS_OUTPUT: bool>(&mut self) {
+        let mut now =
+            Instant::now() + Duration::from_micros(self.time_per_output_pin.as_micros() >> 1);
+
         // debounce on, down cleared for compare
         let debounce = self.debounce_from_cycle();
 
@@ -221,8 +227,8 @@ impl<
             .enumerate()
         {
             let _ = op.set_low();
-            self.now += self.pin_wait;
-            Timer::at(self.now).await;
+            Timer::at(now).await;
+            now += self.time_per_output_pin;
 
             for (input_idx, (ip, s)) in self.input_pins.iter_mut().zip(s.iter_mut()).enumerate() {
                 let settle = *s & !3; // down states cleared for compare
@@ -255,14 +261,12 @@ impl<
                 }
 
                 if changed {
-                    self.channel
-                        .0
-                        .send(if ROW_IS_OUTPUT {
-                            ScanKey::new(output_idx as u8, input_idx as u8, key_state == 1)
-                        } else {
-                            ScanKey::new(input_idx as u8, output_idx as u8, key_state == 1)
-                        })
-                        .await;
+                    let skey = if ROW_IS_OUTPUT {
+                        ScanKey::new(output_idx as u8, input_idx as u8, key_state == 1)
+                    } else {
+                        ScanKey::new(input_idx as u8, output_idx as u8, key_state == 1)
+                    };
+                    self.channel.0.send(skey).await;
                 }
             }
 
@@ -275,7 +279,7 @@ impl<
             if !self.all_up {
                 self.all_up = true;
                 self.cycle = 0;
-                self.clock = self.now;
+                self.idle_start = Instant::now();
             }
         } else {
             self.all_up = false;
@@ -283,7 +287,7 @@ impl<
     }
 
     fn calc_debounce_cycle(&mut self) {
-        let w = self.pin_wait.as_micros() as u32 * OUTPUT_N as u32;
+        let w = self.time_per_output_pin.as_micros() as u32 * OUTPUT_N as u32;
 
         self.all_up_limit = IDLE_WAIT_MS * 1000 / w;
 

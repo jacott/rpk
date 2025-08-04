@@ -121,7 +121,7 @@ macro_rules! setup {
             let debounce_ms_atomic = atomic::AtomicU16::new($debounce_ms);
             let mut $scanner =
                 KeyScanner::new([$p1.clone()], [p2.clone()], &$channel, &debounce_ms_atomic);
-            $scanner.pin_wait = Duration::from_micros(50);
+            $scanner.time_per_output_pin = Duration::from_micros(50);
             $scanner.calc_debounce_cycle();
 
             assert_eq!($p1.0.n, 1);
@@ -234,7 +234,7 @@ fn debounce() {
 fn wait_for_key() {
     setup!(_pscan, p1, channel, scanner 10 {
         scanner.cycle = 3;
-        scanner.clock = Instant::now() - Duration::from_millis(1);
+        scanner.idle_start = Instant::now() - Duration::from_millis(1);
         p1.set_high().ok();
         let ordering = Channel::<NoopRawMutex, &'static str, 10>::new();
         let o1 = &ordering;
@@ -256,8 +256,8 @@ fn wait_for_key() {
         let select::Either::First((scanner, true)) = ans else {
             panic!("Expected scanner");
         };
-        assert_eq!(scanner.all_up_limit, 6666);
-        assert_eq!(scanner.pin_wait, Duration::from_ticks(300));
+        assert_eq!(scanner.all_up_limit, 5988);
+        assert_eq!(scanner.time_per_output_pin, Duration::from_ticks(334));
         assert_eq!(scanner.debounce_divisor, 1);
         assert_eq!(scanner.debounce_modulus, 8);
     });
