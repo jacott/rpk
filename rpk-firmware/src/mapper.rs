@@ -1,9 +1,9 @@
 use core::{cell::RefCell, cmp::min, sync::atomic};
 
 use dual_action::DualActionTimer;
-use embassy_futures::select::{select, Either};
+use embassy_futures::select::{Either, select};
 use embassy_sync::{
-    blocking_mutex::raw::{NoopRawMutex, RawMutex},
+    blocking_mutex::raw::{CriticalSectionRawMutex, NoopRawMutex, RawMutex},
     channel::Channel,
     lazy_lock::LazyLock,
     pubsub::{PubSubBehavior, PubSubChannel},
@@ -26,7 +26,7 @@ pub(crate) mod dual_action;
 pub(crate) mod macros;
 pub(crate) mod mouse;
 
-pub type KeyScanLog = PubSubChannel<NoopRawMutex, ScanKey, 5, 1, 1>;
+pub type KeyScanLog = PubSubChannel<CriticalSectionRawMutex, ScanKey, 5, 1, 1>;
 
 pub static KEY_SCAN_LOGGER: LazyLock<KeyScanLog> = LazyLock::new(KeyScanLog::new);
 
@@ -294,13 +294,13 @@ pub struct Mapper<
     pending_up_modifiers: u8,
 }
 impl<
-        'c,
-        const ROW_COUNT: usize,
-        const COL_COUNT: usize,
-        M: RawMutex,
-        const LAYOUT_MAX: usize,
-        const REPORT_BUFFER_SIZE: usize,
-    > Mapper<'c, ROW_COUNT, COL_COUNT, LAYOUT_MAX, M, REPORT_BUFFER_SIZE>
+    'c,
+    const ROW_COUNT: usize,
+    const COL_COUNT: usize,
+    M: RawMutex,
+    const LAYOUT_MAX: usize,
+    const REPORT_BUFFER_SIZE: usize,
+> Mapper<'c, ROW_COUNT, COL_COUNT, LAYOUT_MAX, M, REPORT_BUFFER_SIZE>
 {
     const OKAY: bool = assert_sizes::<LAYOUT_MAX, REPORT_BUFFER_SIZE>();
     pub fn new(
@@ -367,7 +367,7 @@ impl<
         &mut self,
         key_scan_channel: &'c KeyScannerChannel<M, SCANNER_BUFFER_SIZE>,
     ) -> ControlMessage {
-        let mut key_logging = false;
+        let mut key_logger: Option<&KeyScanLog> = None;
         'outer: loop {
             // run this first because no macros may be present when running memos
             while !matches!(self.macro_running, Macro::Noop) {
@@ -392,15 +392,20 @@ impl<
             // now look for events
             match event {
                 Either::First(scan_key) => {
-                    if key_logging {
-                        let logger = KEY_SCAN_LOGGER.get();
+                    if let Some(logger) = key_logger {
                         logger.publish_immediate(scan_key);
                     }
                     self.key_switch(TimedScanKey(scan_key, self.now))
                 }
                 Either::Second(ControlMessage::TimerExpired) => self.check_time(),
                 Either::Second(ControlMessage::Exit) => return ControlMessage::Exit,
-                Either::Second(ControlMessage::LogKeys(on)) => key_logging = on,
+                Either::Second(ControlMessage::LogKeys(on)) => {
+                    if on {
+                        key_logger = Some(KEY_SCAN_LOGGER.get());
+                    } else {
+                        key_logger = None;
+                    }
+                }
                 Either::Second(ctl) => {
                     self.clear_all();
                     return ctl;

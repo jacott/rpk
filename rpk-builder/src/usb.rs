@@ -1,15 +1,15 @@
 use embassy_futures::{join::join, select::select};
 use embassy_usb::{
+    Builder,
     class::hid::{ReportId, RequestHandler},
     control::OutResponse,
     driver::{Driver, Endpoint, EndpointIn, EndpointOut},
-    Builder,
 };
 use rpk_common::usb_vendor_message::MAX_BULK_LEN;
 use rpk_firmware::{
     config::{ConfigInterface, HostMessage},
     hid, mapper,
-    usb::{Configurator, State, SHARED_REPORT_DESC},
+    usb::{Configurator, SHARED_REPORT_DESC, State},
 };
 
 pub type SharedHidWriter<'d, D> = hid::HidWriter<'d, D, 34>;
@@ -63,8 +63,8 @@ impl ConfigBuilder {
         let mut function = usb_builder.function(0xFF, 0, 0);
         let mut interface = function.interface();
         let mut alt = interface.alt_setting(0xFF, 0, 0, None);
-        let read_ep = alt.endpoint_bulk_out(MAX_BULK_LEN);
-        let write_ep = alt.endpoint_bulk_in(MAX_BULK_LEN);
+        let read_ep = alt.endpoint_bulk_out(None, MAX_BULK_LEN);
+        let write_ep = alt.endpoint_bulk_in(None, MAX_BULK_LEN);
 
         drop(function);
 

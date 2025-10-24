@@ -3,11 +3,11 @@ use core::{
     sync::atomic::{AtomicUsize, Ordering},
 };
 use embassy_usb::{
+    Builder, Config, Handler,
     class::hid::{ReportId, RequestHandler},
     control::{InResponse, OutResponse, Recipient, Request, RequestType},
     driver::Driver,
     types::InterfaceNumber,
-    Builder, Config, Handler,
 };
 
 use crate::hid::{HidReader, HidWriter};
@@ -248,9 +248,9 @@ impl<'d> Configurator<'d> {
             ],
         );
 
-        let ep_in = alt.endpoint_interrupt_in(self.max_packet_size, self.poll_ms);
+        let ep_in = alt.endpoint_interrupt_in(None, self.max_packet_size, self.poll_ms);
         let ep_out = if need_reader {
-            Some(alt.endpoint_interrupt_out(self.max_packet_size, self.poll_ms))
+            Some(alt.endpoint_interrupt_out(None, self.max_packet_size, self.poll_ms))
         } else {
             None
         };

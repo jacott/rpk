@@ -1,8 +1,8 @@
 use proc_macro2::TokenStream;
-use quote::{quote, ToTokens};
+use quote::{ToTokens, quote};
 use rpk_config::{
-    compiler::{compile, KeyboardConfig, SourceRange},
     ConfigError,
+    compiler::{KeyboardConfig, SourceRange, compile},
 };
 use std::{
     env,
@@ -10,7 +10,7 @@ use std::{
     fs,
     path::{Path, PathBuf},
 };
-use syn::{visit::Visit, visit_mut::VisitMut, Lit};
+use syn::{Lit, visit::Visit, visit_mut::VisitMut};
 
 #[derive(Debug)]
 struct BuildError(String);
@@ -137,8 +137,8 @@ fn quote_conf(source_file: &Path) -> Result<TokenStream> {
         macro_rules! config_matrix_pins_rp {
             (peripherals: $p:ident, input: [$($in_pin:ident), *], output: [$($out_pin:ident), +]) => {
                 {
-                    let mut output_pins = [$(Output::new(AnyPin::from($p.$out_pin), gpio::Level::High)), +];
-                    let input_pins = [$(Input::new(AnyPin::from($p.$in_pin), gpio::Pull::Up)), +];
+                    let mut output_pins = [$(Output::new($p.$out_pin, gpio::Level::High)), +];
+                    let input_pins = [$(Input::new($p.$in_pin, gpio::Pull::Up)), +];
                     output_pins.iter_mut().for_each(|p| {
                         p.set_high();
                     });

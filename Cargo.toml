@@ -20,9 +20,9 @@ rpk-config = { version = "0.2", path = "rpk-config" }
 rpk-macros = { version = "0.2", path = "rpk-macros" }
 
 embassy-sync = "0.7"
-embassy-executor = "0.7"
-embassy-usb = "0.4"
-embassy-time = "0.4"
+embassy-executor = "0.9"
+embassy-usb = "0.5"
+embassy-time = "0.5"
 embassy-time-driver = "0.2"
 embassy-futures = "0.1"
 

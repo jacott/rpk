@@ -176,7 +176,8 @@ impl Driver<'_> for MyDriver {
 
     fn alloc_endpoint_out(
         &mut self,
-        _ep_type: embassy_usb::driver::EndpointType,
+        _ep_type: EndpointType,
+        _ep_addr: Option<EndpointAddress>,
         _max_packet_size: u16,
         _interval_ms: u8,
     ) -> Result<Self::EndpointOut, embassy_usb::driver::EndpointAllocError> {
@@ -185,7 +186,8 @@ impl Driver<'_> for MyDriver {
 
     fn alloc_endpoint_in(
         &mut self,
-        _ep_type: embassy_usb::driver::EndpointType,
+        _ep_type: EndpointType,
+        _ep_addr: Option<EndpointAddress>,
         _max_packet_size: u16,
         _interval_ms: u8,
     ) -> Result<Self::EndpointIn, embassy_usb::driver::EndpointAllocError> {

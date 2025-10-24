@@ -139,37 +139,38 @@ mod test {
 
     #[macro_export]
     macro_rules! debug {
-    ($($arg:expr),*) => {{
-        extern crate std;
-        std::eprintln!("DEBUG: {}",  format_args!($($arg,)*))
-    }};
-}
+        ($($arg:expr),*) => {{
+            extern crate std;
+            std::eprintln!("DEBUG: {}",  format_args!($($arg,)*))
+        }};
+    }
 
     #[macro_export]
     macro_rules! info {
-    ($($arg:expr),*) => {{
-        extern crate std;
-        std::eprintln!("INFO: {}",  std::format!($($arg,)*))
-    }};
-}
+        ($($arg:expr),*) => {{
+            extern crate std;
+            std::eprintln!("INFO: {}",  std::format!($($arg,)*))
+        }};
+    }
 
     #[macro_export]
     macro_rules! warn {
-    ($($arg:expr),*) => {{
-        extern crate std;
-        std::eprintln!("WARN: {}",  std::format!($($arg,)*))
-    }};
-}
+        ($($arg:expr),*) => {{
+            extern crate std;
+            std::eprintln!("WARN: {}",  std::format!($($arg,)*))
+        }};
+    }
 
     #[macro_export]
     macro_rules! error {
-    ($($arg:expr),*) => {{
-        extern crate std;
-        if cfg!(test) {
-            panic!("{}", std::format!($($arg,)*));
-        } else {
-            std::eprintln!("\nERROR: at ./{}:{}:{}:\n{}", file!(), line!(), column!(), std::format!($($arg,)*));
-        }
-    }};
-}
+        ($($arg:expr),*) => {{
+            extern crate std;
+            if cfg!(test) {
+                panic!("{}", std::format!($($arg,)*));
+            } else {
+                std::eprintln!("\nERROR: at ./{}:{}:{}:\n{}", file!(), line!(),
+                               column!(), std::format!($($arg,)*));
+            }
+        }};
+    }
 }

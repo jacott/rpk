@@ -1,4 +1,4 @@
-use core::sync::atomic;
+use core::{pin::pin, sync::atomic};
 
 use embassy_futures::select::select_slice;
 use embassy_sync::{blocking_mutex::raw::RawMutex, channel::Channel};
@@ -136,14 +136,14 @@ pub struct KeyScanner<
     debounce_ms_atomic: &'c atomic::AtomicU16,
 }
 impl<
-        'c,
-        I: InputPin + Wait,
-        O: OutputPin,
-        M: RawMutex,
-        const INPUT_N: usize,
-        const OUTPUT_N: usize,
-        const PS: usize,
-    > KeyScanner<'c, I, O, M, INPUT_N, OUTPUT_N, PS>
+    'c,
+    I: InputPin + Wait,
+    O: OutputPin,
+    M: RawMutex,
+    const INPUT_N: usize,
+    const OUTPUT_N: usize,
+    const PS: usize,
+> KeyScanner<'c, I, O, M, INPUT_N, OUTPUT_N, PS>
 {
     pub fn new(
         input_pins: [I; INPUT_N],
@@ -203,7 +203,7 @@ impl<
                 .iter_mut()
                 .map(|input_pin| input_pin.wait_for_low());
             let mut futs: [_; INPUT_N] = core::array::from_fn(|_| futs.next().unwrap());
-            let _ = select_slice(futs.as_mut_slice()).await;
+            let _ = select_slice(pin!(futs.as_mut_slice())).await;
         }
 
         for out in self.output_pins.iter_mut() {
