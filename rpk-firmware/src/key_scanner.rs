@@ -287,9 +287,9 @@ impl<
     }
 
     fn calc_debounce_cycle(&mut self) {
-        let w = self.time_per_output_pin.as_micros() as u32 * OUTPUT_N as u32;
+        let scan_time = self.time_per_output_pin.as_micros() as u32 * OUTPUT_N as u32;
 
-        self.all_up_limit = IDLE_WAIT_MS * 1000 / w;
+        self.all_up_limit = IDLE_WAIT_MS * 1000 / scan_time;
 
         let m16 = self.debounce_ms_atomic.load(atomic::Ordering::Relaxed) as u32;
         let m = (if m16 < 16384 {
@@ -299,7 +299,7 @@ impl<
         })
         .clamp(1, 2_500_000);
 
-        let l = m / w;
+        let l = m / scan_time;
         let f = l / 252 + 1;
         self.debounce_divisor = f;
         self.debounce_modulus = (4 + (l / f).clamp(4, 248)) & !3;

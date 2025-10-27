@@ -4,17 +4,17 @@ use std::{
     ffi::OsStr,
     fmt::Display,
     sync::{
-        mpsc::{self, RecvTimeoutError},
         Arc, Mutex,
+        mpsc::{self, RecvTimeoutError},
     },
     time::Duration,
 };
 
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use chrono::{DateTime, Local, Utc};
 use futures_lite::future::block_on;
 use nusb::transfer::{Direction, RequestBuffer};
-use rpk_common::usb_vendor_message::{self as msg, host_recv, MAX_BULK_LEN, READ_FILE_BY_INDEX};
+use rpk_common::usb_vendor_message::{self as msg, MAX_BULK_LEN, READ_FILE_BY_INDEX, host_recv};
 
 fn u16tou8(words: &[u16]) -> impl Iterator<Item = u8> + use<'_> {
     words.iter().flat_map(|a| a.to_le_bytes())
@@ -315,7 +315,7 @@ pub fn file_name_iter(file_name: Option<&OsStr>) -> (impl Iterator<Item = &u8>, 
     let file_name = &file_name[..min(50, file_name.len())];
     let mut v = vec![];
     let mut len = file_name.len();
-    if len % 2 == 1 {
+    if len & 1 == 1 {
         let null: &[u8] = &[0];
         len += 1;
         v.push(null);

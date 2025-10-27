@@ -62,11 +62,7 @@ impl MouseConfig {
         }
     }
     pub fn input(&self, i: usize) -> &MouseAnalogSetting {
-        if i < 2 {
-            &self.movement
-        } else {
-            &self.scroll
-        }
+        if i < 2 { &self.movement } else { &self.scroll }
     }
 }
 
@@ -131,11 +127,7 @@ impl MouseMove {
 }
 
 fn min(a: f32, b: f32) -> f32 {
-    if a < b {
-        a
-    } else {
-        b
-    }
+    if a < b { a } else { b }
 }
 
 #[cfg(test)]
