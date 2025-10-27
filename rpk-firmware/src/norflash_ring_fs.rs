@@ -25,14 +25,14 @@ pub struct NorflashRingFs<
 }
 
 impl<
-        'd,
-        F: NorFlash,
-        const BASE: usize,
-        const SIZE: usize,
-        const DIR_SIZE: u32,
-        const PAGE_SIZE: usize,
-        const MAX_FILES: u32,
-    > RingFs<'d> for NorflashRingFs<'d, F, BASE, SIZE, DIR_SIZE, PAGE_SIZE, MAX_FILES>
+    'd,
+    F: NorFlash,
+    const BASE: usize,
+    const SIZE: usize,
+    const DIR_SIZE: u32,
+    const PAGE_SIZE: usize,
+    const MAX_FILES: u32,
+> RingFs<'d> for NorflashRingFs<'d, F, BASE, SIZE, DIR_SIZE, PAGE_SIZE, MAX_FILES>
 {
     fn create_file(&'d self) -> Result<RingFsWriter<'d>, RingFsError> {
         let mut inner = self.inner.borrow_mut();
@@ -85,14 +85,14 @@ struct NorflashRingFsInner<
 }
 
 impl<
-        'd,
-        F: NorFlash,
-        const BASE: usize,
-        const SIZE: usize,
-        const DIR_SIZE: u32,
-        const PAGE_SIZE: usize,
-        const MAX_FILES: u32,
-    > NorflashRingFs<'d, F, BASE, SIZE, DIR_SIZE, PAGE_SIZE, MAX_FILES>
+    'd,
+    F: NorFlash,
+    const BASE: usize,
+    const SIZE: usize,
+    const DIR_SIZE: u32,
+    const PAGE_SIZE: usize,
+    const MAX_FILES: u32,
+> NorflashRingFs<'d, F, BASE, SIZE, DIR_SIZE, PAGE_SIZE, MAX_FILES>
 {
     pub fn new(flash: &'d mut F) -> Result<Self, RingFsError> {
         Ok(Self {
@@ -102,11 +102,7 @@ impl<
 }
 
 const fn max32(a: u32, b: u32) -> u32 {
-    if a < b {
-        b
-    } else {
-        a
-    }
+    if a < b { b } else { a }
 }
 
 const fn assert_fs_params<
@@ -119,19 +115,19 @@ const fn assert_fs_params<
     erase_size: u32,
 ) -> u32 {
     assert!(PAGE_SIZE >= 4);
-    assert!(PAGE_SIZE % 4 == 0);
+    assert!(PAGE_SIZE.is_multiple_of(4));
     let erase_size = max32(4, (erase_size >> 2) << 2);
     let erase_size = max32(
         erase_size,
         (max32(MAX_FILES * 4 + PREAMBLE_LEN + 8, erase_size) / erase_size) * erase_size,
     );
 
-    assert!(BASE % DIR_SIZE as usize == 0);
-    assert!(SIZE % erase_size as usize == 0);
-    assert!(DIR_SIZE % erase_size == 0);
+    assert!(BASE.is_multiple_of(DIR_SIZE as usize));
+    assert!(SIZE.is_multiple_of(erase_size as usize));
+    assert!(DIR_SIZE.is_multiple_of(erase_size));
     assert!(PAGE_SIZE as u32 <= erase_size);
-    assert!(erase_size % PAGE_SIZE as u32 == 0);
-    assert!(DIR_SIZE % erase_size == 0);
+    assert!(erase_size.is_multiple_of(PAGE_SIZE as u32));
+    assert!(DIR_SIZE.is_multiple_of(erase_size));
     assert!(DIR_SIZE >= 20);
     erase_size
 }
@@ -145,14 +141,14 @@ fn map_flash_error(err: impl nor_flash::NorFlashError) -> RingFsError {
 }
 
 impl<
-        'd,
-        F: NorFlash,
-        const BASE: usize,
-        const SIZE: usize,
-        const DIR_SIZE: u32,
-        const PAGE_SIZE: usize,
-        const MAX_FILES: u32,
-    > NorflashRingFsInner<'d, F, BASE, SIZE, DIR_SIZE, PAGE_SIZE, MAX_FILES>
+    'd,
+    F: NorFlash,
+    const BASE: usize,
+    const SIZE: usize,
+    const DIR_SIZE: u32,
+    const PAGE_SIZE: usize,
+    const MAX_FILES: u32,
+> NorflashRingFsInner<'d, F, BASE, SIZE, DIR_SIZE, PAGE_SIZE, MAX_FILES>
 {
     const ERASE_SIZE: u32 =
         assert_fs_params::<BASE, SIZE, DIR_SIZE, PAGE_SIZE, MAX_FILES>(F::ERASE_SIZE as u32);

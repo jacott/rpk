@@ -20,7 +20,7 @@ impl<'d, D: Driver<'d>, const N: usize> HidWriter<'d, D, N> {
         assert!(report.len() <= N);
 
         let max_packet_size = usize::from(self.ep_in.info().max_packet_size);
-        let zlp_needed = report.len() < N && (report.len() % max_packet_size == 0);
+        let zlp_needed = report.len() < N && report.len().is_multiple_of(max_packet_size);
         for chunk in report.chunks(max_packet_size) {
             self.ep_in.write(chunk).await?;
         }
@@ -59,9 +59,9 @@ impl<'d, D: Driver<'d>, const N: usize> HidReader<'d, D, N> {
                 }
                 Err(ReadError::BufferOverflow) => {
                     warn!(
-                    "Host sent output report larger than the configured maximum output report length ({})",
-                    N
-                );
+                        "Host sent output report larger than the configured maximum output report length ({})",
+                        N
+                    );
                 }
                 Err(ReadError::Disabled) => self.ep_out.wait_enabled().await,
                 Err(ReadError::Sync(_)) => unreachable!(),

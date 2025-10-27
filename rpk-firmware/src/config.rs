@@ -4,7 +4,7 @@ use crate::{
 };
 use embassy_sync::{blocking_mutex::raw::NoopRawMutex, channel::Channel};
 use embassy_time::Instant;
-use rpk_common::usb_vendor_message::{self as msg, host_recv, MAX_BULK_LEN};
+use rpk_common::usb_vendor_message::{self as msg, MAX_BULK_LEN, host_recv};
 
 enum ReceiveState {
     Idle,
@@ -157,10 +157,10 @@ impl<'f, 'c, const N: usize> ConfigInterface<'f, 'c, N> {
                 }
             }
         }
-        if let Some(fw) = &mut self.fw {
-            if let Err(err) = fw.write(data) {
-                crate::info!("write failed {:?}", err);
-            }
+        if let Some(fw) = &mut self.fw
+            && let Err(err) = fw.write(data)
+        {
+            crate::info!("write failed {:?}", err);
         }
     }
 }

@@ -25,8 +25,9 @@ pub trait KeyboardInterface {
     fn bulk_in(&self, endpoint: u8, max_len: u16) -> Result<Vec<u8>>;
 }
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub enum FileType {
+    #[default]
     Config,
 }
 impl FileType {
@@ -39,11 +40,6 @@ impl FileType {
 }
 impl From<u8> for FileType {
     fn from(_value: u8) -> Self {
-        Self::Config
-    }
-}
-impl Default for FileType {
-    fn default() -> Self {
         Self::Config
     }
 }

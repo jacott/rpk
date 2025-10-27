@@ -1,21 +1,21 @@
 use std::{collections::HashMap, ops::Range, path::PathBuf, str::CharIndices};
 
 use rpk_common::{
+    PROTOCOL_VERSION,
     globals::{COMPOSITE_BIT, COMPOSITE_PART_BIT},
     keycodes::{
         key_range::{self, BASIC_0, BASIC_1, BASIC_A},
         macro_types,
     },
-    PROTOCOL_VERSION,
 };
 
 use crate::{
+    ConfigError,
     globals::{
         self,
         spec::{self, GlobalProp},
     },
     keycodes::{self, key_code, unshifted_char_code},
-    ConfigError,
 };
 
 type Result<T> = core::result::Result<T, ConfigError>;
@@ -223,7 +223,7 @@ impl<'source> Parser<'source> {
                                 return Err(error_span(
                                     "Missing section end delimiter ']'",
                                     start.0..v.map(|v| v.0).unwrap_or(self.iter.len),
-                                ))
+                                ));
                             }
                         };
                         let full_tag_name = &self.config.source[start.0 + 1..tag_end.0];
@@ -582,10 +582,10 @@ impl<'source> Parser<'source> {
 
     fn expect(&mut self, c: char) -> Result<()> {
         self.mark_start();
-        if let Some(start) = self.next_non_ws() {
-            if start.1 == c {
-                return Ok(());
-            }
+        if let Some(start) = self.next_non_ws()
+            && start.1 == c
+        {
+            return Ok(());
         }
 
         Err(self.error(format!("Expected {c} ")))
@@ -766,7 +766,7 @@ impl<'source> Parser<'source> {
                     return Err(error_span(
                         "Invalid unicode digit",
                         self.iter.current.0..self.iter.current.0 + 1,
-                    ))
+                    ));
                 }
             }
         }
@@ -1199,15 +1199,16 @@ impl<'source> KeyboardConfig<'source> {
     }
 
     fn key_position(&self, name: &str) -> Option<u16> {
-        if let Some(name) = name.strip_prefix("0x") {
-            if let Ok(pos) = u16::from_str_radix(name, 16) {
-                return Some(match name.len() {
-                    2 => (pos & 0xf0) << 4 | (pos & 0xf),
-                    3..=4 => pos,
-                    _ => return None,
-                });
-            }
+        if let Some(name) = name.strip_prefix("0x")
+            && let Ok(pos) = u16::from_str_radix(name, 16)
+        {
+            return Some(match name.len() {
+                2 => (pos & 0xf0) << 4 | (pos & 0xf),
+                3..=4 => pos,
+                _ => return None,
+            });
         }
+
         None
     }
 
@@ -1368,14 +1369,13 @@ impl<'source> KeyboardConfig<'source> {
         match name {
             "matrix" => {
                 let mut iter = suffix.split_terminator('x');
-                if let (Some(row_count), Some(col_count)) = (iter.next(), iter.next()) {
-                    if let (Ok(row_count), Ok(col_count)) =
+                if let (Some(row_count), Some(col_count)) = (iter.next(), iter.next())
+                    && let (Ok(row_count), Ok(col_count)) =
                         (row_count.parse::<u8>(), col_count.parse::<u8>())
-                    {
-                        self.row_count = row_count;
-                        self.col_count = col_count;
-                        return Ok(());
-                    }
+                {
+                    self.row_count = row_count;
+                    self.col_count = col_count;
+                    return Ok(());
                 }
 
                 return Err(ConfigError::new(

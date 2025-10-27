@@ -37,10 +37,9 @@ pub async fn run<
                 crate::info!("error reading layout {:?}", err);
                 false
             }
-        } {
-            if let Err(err) = mapper.load_layout(layout_mapping.iter().copied()) {
-                crate::info!("unexpected error loading layout {:?}", err);
-            }
+        } && let Err(err) = mapper.load_layout(layout_mapping.iter().copied())
+        {
+            crate::info!("unexpected error loading layout {:?}", err);
         }
     }
 

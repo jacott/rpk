@@ -1,10 +1,10 @@
 use clap::{Args, Parser, Subcommand, ValueEnum};
 use rpk_common::keycodes::key_range;
 use rpk_config::{
+    ConfigError,
     compiler::KeyboardConfig,
     keycodes, pretty_compile,
     vendor_coms::{self, FileInfo, KeyboardCtl},
-    ConfigError,
 };
 use std::{
     collections::HashSet,
@@ -16,7 +16,7 @@ use std::{
     thread::spawn,
 };
 
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 
 mod init_builder;
 
@@ -288,7 +288,7 @@ impl DeviceFinder {
                 }
 
                 Err(err) => {
-                    return Err(compile_error(file, err.to_string().as_str()).err().unwrap())
+                    return Err(compile_error(file, err.to_string().as_str()).err().unwrap());
                 }
             }
         } else {
@@ -449,7 +449,7 @@ fn compile_error(file: &Path, err: &str) -> Result<()> {
 fn compile_file<'s>(file: &Path, src: &'s str) -> Result<KeyboardConfig<'s>> {
     pretty_compile(file, src).map_err(|err| {
         if err.span.is_none() {
-            anyhow!("{}", err.to_string())
+            anyhow!("{err}")
         } else {
             anyhow!("")
         }

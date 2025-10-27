@@ -107,10 +107,10 @@ fn get_config_filename(input: TokenStream) -> Result<PathBuf> {
 
     let ast: syn::Expr = syn::parse2(input.clone()).map_err(|e| BuildError::from_error(&e))?;
 
-    if let syn::Expr::Lit(expr) = &ast {
-        if let Lit::Str(lit) = &expr.lit {
-            return Ok(cargo.join(lit.value()));
-        }
+    if let syn::Expr::Lit(expr) = &ast
+        && let Lit::Str(lit) = &expr.lit
+    {
+        return Ok(cargo.join(lit.value()));
     }
 
     Err(BuildError(

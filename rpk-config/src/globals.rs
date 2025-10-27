@@ -39,16 +39,17 @@ pub(crate) mod spec {
                     multiplier,
                     ..
                 } => {
-                    if let Ok(n) = text.parse::<f32>() {
-                        if n >= *min && n <= *max {
-                            return Ok(TimeoutCurve {
-                                value: (n * multiplier) as u16,
-                                max: *max,
-                                min: *min,
-                                dp: *dp,
-                                multiplier: *multiplier,
-                            });
-                        }
+                    if let Ok(n) = text.parse::<f32>()
+                        && n >= *min
+                        && n <= *max
+                    {
+                        return Ok(TimeoutCurve {
+                            value: (n * multiplier) as u16,
+                            max: *max,
+                            min: *min,
+                            dp: *dp,
+                            multiplier: *multiplier,
+                        });
                     }
                     let dp = *dp as usize;
                     Err(format!(
@@ -61,10 +62,10 @@ pub(crate) mod spec {
     }
 
     pub fn parse_duration(text: &str, min: u16, max: u16) -> Result<u16, String> {
-        if let Ok(value) = text.parse::<u16>() {
-            if value.clamp(min, max) == value {
-                return Ok(value);
-            }
+        if let Ok(value) = text.parse::<u16>()
+            && value.clamp(min, max) == value
+        {
+            return Ok(value);
         }
         Err(format!(
             "Invalid duration; only {min} to {max} milliseconds are valid"
