@@ -102,10 +102,9 @@ impl<'d, D: Driver<'d>> ConfigEndPoint<'d, D> {
         };
         let s = async {
             let key_logger = mapper::KEY_SCAN_LOGGER.get();
-            let mut key_logger = key_logger.subscriber().unwrap();
             let mut key_msg = HostMessage::key_scan();
             loop {
-                match select(host_channel.receive(), key_logger.next_message_pure()).await {
+                match select(host_channel.receive(), key_logger.receive()).await {
                     embassy_futures::select::Either::First(msg) => {
                         let _ = self.write_ep.write(msg.as_slice()).await;
                     }

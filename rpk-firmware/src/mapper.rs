@@ -6,7 +6,6 @@ use embassy_sync::{
     blocking_mutex::raw::{CriticalSectionRawMutex, NoopRawMutex, RawMutex},
     channel::Channel,
     lazy_lock::LazyLock,
-    pubsub::{PubSubBehavior, PubSubChannel},
     signal::Signal,
 };
 use embassy_time::{Instant, Timer};
@@ -26,7 +25,7 @@ pub(crate) mod dual_action;
 pub(crate) mod macros;
 pub(crate) mod mouse;
 
-pub type KeyScanLog = PubSubChannel<CriticalSectionRawMutex, ScanKey, 5, 1, 1>;
+pub type KeyScanLog = Channel<CriticalSectionRawMutex, ScanKey, 5>;
 
 pub static KEY_SCAN_LOGGER: LazyLock<KeyScanLog> = LazyLock::new(KeyScanLog::new);
 
@@ -393,7 +392,7 @@ impl<
             match event {
                 Either::First(scan_key) => {
                     if let Some(logger) = key_logger {
-                        logger.publish_immediate(scan_key);
+                        let _ = logger.try_send(scan_key);
                     }
                     self.key_switch(TimedScanKey(scan_key, self.now))
                 }
