@@ -20,7 +20,9 @@ impl Driver for TestTimeDriver {
         })
     }
 
-    fn schedule_wake(&self, _at: u64, waker: &Waker) {
+    fn schedule_wake(&self, at: u64, waker: &Waker) {
+        set_time(at);
+
         let waker = waker.clone();
         waker.wake();
     }
