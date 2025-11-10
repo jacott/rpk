@@ -1,7 +1,6 @@
 [book]
 authors = ["Geoff Jacobsen"]
 language = "en"
-multilingual = false
 src = "src"
 title = "The RPK Guide Book"
 
