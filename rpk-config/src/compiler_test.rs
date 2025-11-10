@@ -1061,7 +1061,9 @@ fn global_dual_action_timeout() {
 
         assert_eq!(
             bin,
-            [1, 0, 6, 0, 2, 3, 500, 7, 8, 9, 10, 11, 12, 13, 1, 2, 4, 8, 64, 0]
+            [
+                1, 0, 6, 0, 2, 3, 500, 7, 8, 9, 10, 11, 12, 13, 1, 2, 4, 8, 64, 0
+            ]
         );
     });
 }
@@ -1087,7 +1089,9 @@ fn global_dual_action_timeout2() {
 
         assert_eq!(
             bin,
-            [1, 0, 6, 0, 2, 4, 50, 7, 8, 9, 10, 11, 12, 13, 1, 2, 4, 8, 64, 0]
+            [
+                1, 0, 6, 0, 2, 4, 50, 7, 8, 9, 10, 11, 12, 13, 1, 2, 4, 8, 64, 0
+            ]
         );
     });
 }
@@ -1109,7 +1113,9 @@ fn tapdance_tap_timeout() {
 
         assert_eq!(
             bin,
-            [1, 0, 6, 0, 2, 6, 50, 7, 8, 9, 10, 11, 12, 13, 1, 2, 4, 8, 64, 0]
+            [
+                1, 0, 6, 0, 2, 6, 50, 7, 8, 9, 10, 11, 12, 13, 1, 2, 4, 8, 64, 0
+            ]
         );
     });
 }
@@ -1123,22 +1129,18 @@ fn global_debounce_settle_time() {
     compile_global!(src, config, "debounce_settle_time", 23.5, {
         let config = config.unwrap();
 
-        assert!(matches!(
-            config.global("debounce_settle_time").unwrap().spec,
-            GlobalType::TimeoutCurve {
-                value: 616,
-                min: 0.1,
-                max: 2500.0,
-                dp: 1,
-                multiplier: 26.214,
-            }
-        ));
+        match config.global("debounce_settle_time").unwrap().spec {
+            GlobalType::DebounceTimeout(v) => assert_eq!(v, 617),
+            _ => panic!("expected GlobalType::DebounceTimeout"),
+        }
 
         let bin = config.serialize();
 
         assert_eq!(
             bin,
-            [1, 0, 6, 0, 2, 5, 616, 7, 8, 9, 10, 11, 12, 13, 1, 2, 4, 8, 64, 0]
+            [
+                1, 0, 6, 0, 2, 5, 617, 7, 8, 9, 10, 11, 12, 13, 1, 2, 4, 8, 64, 0
+            ]
         );
     });
 }

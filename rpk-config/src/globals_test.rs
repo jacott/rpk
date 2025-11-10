@@ -20,6 +20,30 @@ fn mouse_to_from_binary() {
 
     assert_eq!(
         &ans,
-        &vec![52429, 15948, 26214, 16230, 26214, 16390, 0, 16320, 52429, 16556]
+        &vec![
+            52429, 15948, 26214, 16230, 26214, 16390, 0, 16320, 52429, 16556
+        ]
     );
+}
+
+#[test]
+fn parse_debounce() {
+    let err = spec::parse_key_settle_time("-0.01").err().unwrap();
+    assert_eq!(
+        err,
+        "Invalid duration; only 0 to 25000 milliseconds are valid"
+    );
+
+    assert_eq!(spec::parse_key_settle_time("0.1").ok().unwrap(), 3);
+    assert_eq!(spec::parse_key_settle_time("20").ok().unwrap(), 525);
+    assert_eq!(spec::parse_key_settle_time("25000").ok().unwrap(), 65528);
+    assert_eq!(spec::parse_key_settle_time("100").ok().unwrap(), 2622);
+
+    use rpk_common::globals::key_settle_time_uncompress;
+
+    assert_eq!(key_settle_time_uncompress(0), 0);
+    assert_eq!(key_settle_time_uncompress(3), 114);
+    assert_eq!(key_settle_time_uncompress(525), 20027);
+    assert_eq!(key_settle_time_uncompress(65528), 2499726);
+    assert_eq!(key_settle_time_uncompress(2622), 100022);
 }

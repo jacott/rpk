@@ -765,11 +765,11 @@ debounce_settle_time = 12.3
             assert_eq!(t.layout.global(globals::DUAL_ACTION_TIMEOUT as usize), 500);
             assert_eq!(t.layout.global(globals::DUAL_ACTION_TIMEOUT2 as usize), 50);
             assert_eq!(t.layout.global(globals::TAPDANCE_TAP_TIMEOUT as usize), 90);
-            assert_eq!(t.layout.global(globals::DEBOUNCE_SETTLE_TIME as usize), 322);
+            assert_eq!(t.layout.global(globals::DEBOUNCE_SETTLE_TIME as usize), 323);
 
             let debounce = t.debounce_ms_atomic.load(atomic::Ordering::Relaxed);
 
-            assert_eq!(debounce, 322);
+            assert_eq!(debounce, 323);
         }
     );
 }
@@ -2086,17 +2086,15 @@ c = macro(hold(aabbccddeeff) release(fedcba))
                         let KeyEvent::Basic(k, s) = e else {
                             panic!("unexpected event {e:?}");
                         };
-                        if *s {
-                            *k
-                        } else {
-                            *k | 0x80
-                        }
+                        if *s { *k } else { *k | 0x80 }
                     })
                     .collect();
 
                 assert_eq!(
                     msgs,
-                    vec![4, 4, 5, 5, 6, 6, 7, 7, 8, 8, 9, 9, 137, 136, 135, 134, 133, 132]
+                    vec![
+                        4, 4, 5, 5, 6, 6, 7, 7, 8, 8, 9, 9, 137, 136, 135, 134, 133, 132
+                    ]
                 );
 
                 press!(1, 2, true);
@@ -2110,15 +2108,6 @@ c = macro(hold(aabbccddeeff) release(fedcba))
                 ));
 
                 assert_read!(E KeyEvent::Clear);
-
-                // fixme!
-                // if let WaitResult::Message(msg) = ksl_sub.try_next_message().unwrap() {
-                //     assert_eq!(msg.row(), 0);
-                //     assert_eq!(msg.column(), 2);
-                //     assert!(!msg.is_down());
-                // } else {
-                //     panic!("expected a message");
-                // }
             }
         );
     });

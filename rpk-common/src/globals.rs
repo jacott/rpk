@@ -22,3 +22,10 @@ pub const TAPDANCE_TAP_TIMEOUT_DEFAULT: u16 = 180; // 180ms
 
 pub const COMPOSITE_BIT: u16 = 0x0100;
 pub const COMPOSITE_PART_BIT: u16 = 0x0200;
+
+/// Uncompress a key settle time which was compressed using [`rpk_config::globals::parse_key_settle_time`].
+/// See [`rpk_config::globals::test`] for tests.
+#[inline]
+pub fn key_settle_time_uncompress(m16: u32) -> u32 {
+    (m16 * 39063) >> 10
+}

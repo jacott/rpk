@@ -10,18 +10,8 @@ pub(crate) mod spec {
 
     #[derive(Clone, Copy, Debug)]
     pub(crate) enum GlobalType {
-        Timeout {
-            value: u16,
-            max: u16,
-            min: u16,
-        },
-        TimeoutCurve {
-            value: u16,
-            max: f32,
-            min: f32,
-            dp: i32,
-            multiplier: f32,
-        },
+        Timeout { value: u16, max: u16, min: u16 },
+        DebounceTimeout(u16),
         MouseProfile(MouseConfig),
     }
     impl GlobalType {
@@ -32,30 +22,7 @@ pub(crate) mod spec {
                     max: *max,
                     min: *min,
                 }),
-                TimeoutCurve {
-                    max,
-                    min,
-                    dp,
-                    multiplier,
-                    ..
-                } => {
-                    if let Ok(n) = text.parse::<f32>()
-                        && n >= *min
-                        && n <= *max
-                    {
-                        return Ok(TimeoutCurve {
-                            value: (n * multiplier) as u16,
-                            max: *max,
-                            min: *min,
-                            dp: *dp,
-                            multiplier: *multiplier,
-                        });
-                    }
-                    let dp = *dp as usize;
-                    Err(format!(
-                        "Invalid duration; only {min:.dp$} to {max:.dp$} milliseconds are valid"
-                    ))
-                }
+                DebounceTimeout(..) => Ok(DebounceTimeout(parse_key_settle_time(text)?)),
                 _ => panic!("Unsupported"),
             }
         }
@@ -70,6 +37,16 @@ pub(crate) mod spec {
         Err(format!(
             "Invalid duration; only {min} to {max} milliseconds are valid"
         ))
+    }
+
+    pub fn parse_key_settle_time(text: &str) -> Result<u16, String> {
+        if let Ok(n) = text.parse::<f32>()
+            && (0.0..=25000.0).contains(&n)
+        {
+            Ok((((n * 1000.0) as u64) << 10).div_ceil(39063) as u16)
+        } else {
+            Err("Invalid duration; only 0 to 25000 milliseconds are valid".to_string())
+        }
     }
 
     use GlobalType::*;
@@ -101,7 +78,7 @@ pub(crate) mod spec {
             let name = super::INDEX_TO_NAME.get(index as usize).copied()?;
             let mut gp = GlobalProp::new_default(name).ok()?;
             match gp.spec {
-                Timeout { ref mut value, .. } | TimeoutCurve { ref mut value, .. } => {
+                Timeout { ref mut value, .. } | DebounceTimeout(ref mut value) => {
                     *value = data.next()?
                 }
                 MouseProfile(ref mut config) => {
@@ -115,7 +92,7 @@ pub(crate) mod spec {
 
         pub(crate) fn serialize(self) -> Box<dyn Iterator<Item = u16>> {
             match self.spec {
-                Timeout { value, .. } | TimeoutCurve { value, .. } => {
+                Timeout { value, .. } | DebounceTimeout(value) => {
                     Box::new([self.index, value].into_iter())
                 }
                 MouseProfile(MouseConfig { movement, scroll }) => Box::new(
@@ -207,13 +184,7 @@ pub(crate) mod spec {
         },
         GlobalProp {
             index: globals::DEBOUNCE_SETTLE_TIME,
-            spec: GlobalType::TimeoutCurve {
-                value: globals::DEBOUNCE_SETTLE_TIME_DEFAULT,
-                min: 0.1,
-                max: 2500.0,
-                dp: 1,
-                multiplier: 65535.0 / 2500.0,
-            },
+            spec: GlobalType::DebounceTimeout(globals::DEBOUNCE_SETTLE_TIME_DEFAULT),
         },
         GlobalProp {
             index: globals::TAPDANCE_TAP_TIMEOUT,
