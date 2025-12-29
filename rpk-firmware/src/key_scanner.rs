@@ -271,7 +271,8 @@ impl<
                             continue;
                         }
                     }
-                } else if changed {
+                }
+                if changed {
                     is_all_up = false;
                     *s =
                         start_debounce(key_state * 3, self.debounce_count, self.debounce_count_max);

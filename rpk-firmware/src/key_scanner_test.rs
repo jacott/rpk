@@ -218,7 +218,7 @@ fn debounce() {
         scan!(123, 242);
         assert!(channel.0.try_receive().is_err());
 
-        scan!(1, 2);
+        scan!(1, 236);
         assert_eq!(channel.0.try_receive().unwrap(), ScanKey::new(1, 0, false));
     });
 }
